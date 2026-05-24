@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>PITCHUP — Create Match wizard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    /*
+    ═══════════════════════════════════════════════════════
+    PITCHUP — CREATE MATCH WIZARD (anchor mockup, light theme v1)
+    ═══════════════════════════════════════════════════════
+    Maps to: app/(public)/matches/new/page.tsx
+
+    Spec source: docs/spec/pitchup-spec-match.md → "/matches/new — Create match (wizard, 3 steps)"
+
+    Layout per spec:
+      Header        : "New match"  +  [✕ Close]
+      Progress dots : ●━━○──○      +  "Step N/3"
+      Main content  : step body
+      Footer        : [Back]  [Next →]  (or [Publish match] on step 3)
+
+    This file stacks all 3 steps vertically as separate "phone"
+    cards so the whole wizard can be reviewed in one scroll.
+    In production each step replaces the previous in-place.
+
+    Today (for the calendar mock) is treated as Sunday 2026-05-24,
+    matching the spec's "today + 20 days" ceiling — so 2026-06-13
+    is the last enabled date and 2026-06-14+ is disabled.
+
+    Tokens are canonical in mockups/match.html — mirrored here
+    so this file renders standalone.
+    ═══════════════════════════════════════════════════════
+    */
+
+    :root {
+      --bg-base: #F5F0E8;
+      --bg-surface: #EDE8DC;
+      --bg-card: #FFFFFF;
+      --bg-card-dim: #F9F7F4;
+      --green-dark: #0E5C2F;
+      --green-mid: #176B38;
+      --lime: #C5E63C;
+      --lime-text: #2D3A00;
+      --text-primary: #1A1A1A;
+      --text-secondary: #6B7280;
+      --text-muted: #9CA3AF;
+      --text-inverted: #FFFFFF;
+      --border: #E0DAD0;
+      --border-strong: #C7C0B3;
+      --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.05);
+      --shadow-btn: 0 2px 8px rgba(14, 92, 47, 0.25);
+      --status-open: #0E5C2F;
+      --status-almost: #D97706;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      padding: 40px 16px 80px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .page { max-width: 460px; margin: 0 auto; }
+
+    .page-head { margin-bottom: 32px; text-align: center; }
+    .page-head h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--green-dark);
+      letter-spacing: -0.01em;
+    }
+    .page-head p {
+      margin-top: 6px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    /* ─── Stack of screens ─── */
+
+    .stack { display: flex; flex-direction: column; gap: 40px; }
+
+    .step-card { display: flex; flex-direction: column; gap: 10px; }
+
+    .step-card .meta {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 0 4px;
+    }
+
+    /* ─── Phone container ─── */
+
+    .phone {
+      width: 100%;
+      max-width: 375px;
+      margin: 0 auto;
+      background: var(--bg-base);
+      border-radius: 22px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+    }
+
+    /* ─── Wizard chrome ─── */
+
+    .wiz-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 20px 12px;
+    }
+
+    .wiz-title {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--text-primary);
+    }
+
+    .wiz-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .wiz-close:hover { background: var(--bg-surface); color: var(--text-primary); }
+
+    .wiz-progress {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px 16px;
+      gap: 12px;
+    }
+
+    .wiz-dots {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .wiz-dots .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--border-strong);
+    }
+    .wiz-dots .dot.active { background: var(--green-dark); }
+    .wiz-dots .dot.done   { background: var(--green-dark); opacity: 0.4; }
+    .wiz-dots .bar {
+      width: 28px;
+      height: 2px;
+      background: var(--border-strong);
+      border-radius: 1px;
+    }
+    .wiz-dots .bar.done { background: var(--green-dark); opacity: 0.4; }
+
+    .wiz-step-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .wiz-body {
+      padding: 8px 20px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .wiz-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 14px 20px 18px;
+      border-top: 1px solid var(--border);
+      background: var(--bg-base);
+    }
+
+    .btn {
+      height: 44px;
+      padding: 0 18px;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.005em;
+      cursor: pointer;
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-strong);
+    }
+    .btn-secondary:hover { background: var(--bg-surface); }
+    .btn-secondary[disabled] {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--green-dark);
+      color: var(--text-inverted);
+      box-shadow: var(--shadow-btn);
+    }
+    .btn-primary:hover { background: var(--green-mid); }
+
+    .btn-publish {
+      width: 100%;
+      height: 50px;
+      font-size: 15px;
+      font-weight: 700;
+      background: var(--green-dark);
+      color: var(--text-inverted);
+      box-shadow: var(--shadow-btn);
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+    }
+    .btn-publish:hover { background: var(--green-mid); }
+
+    /* ─── Field common ─── */
+
+    .field-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .field-helper {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.45;
+      margin-top: 6px;
+    }
+
+    .input-text {
+      width: 100%;
+      height: 42px;
+      padding: 0 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+    .input-text:focus {
+      outline: none;
+      border-color: var(--green-dark);
+      box-shadow: 0 0 0 3px rgba(14, 92, 47, 0.10);
+    }
+    .input-text::placeholder { color: var(--text-muted); }
+
+    /* ─── Step 1: Calendar grid ─── */
+
+    .cal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .cal-month {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .cal-nav {
+      display: flex;
+      gap: 4px;
+    }
+    .cal-nav button {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .cal-nav button[disabled] { opacity: 0.35; cursor: not-allowed; }
+
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+
+    .cal-dow {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding-bottom: 4px;
+    }
+
+    .cal-day {
+      aspect-ratio: 1 / 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      border-radius: 8px;
+      background: var(--bg-card);
+      cursor: pointer;
+      user-select: none;
+      border: 1px solid transparent;
+    }
+    .cal-day:hover:not(.disabled):not(.selected) { background: var(--bg-surface); }
+    .cal-day.disabled { color: var(--text-muted); background: transparent; cursor: not-allowed; }
+    .cal-day.today { border-color: var(--border-strong); }
+    .cal-day.selected {
+      background: var(--green-dark);
+      color: var(--text-inverted);
+      font-weight: 700;
+    }
+
+    /* ─── Step 1: Time + Duration ─── */
+
+    .time-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .time-input {
+      width: 110px;
+      height: 42px;
+      font-family: 'Inter', monospace;
+      font-size: 16px;
+      font-weight: 600;
+      text-align: center;
+      letter-spacing: 0.03em;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-primary);
+    }
+    .time-meta {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border-strong);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .chip:hover { background: var(--bg-surface); }
+    .chip.active {
+      background: var(--green-dark);
+      color: var(--text-inverted);
+      border-color: var(--green-dark);
+    }
+    .chip.custom {
+      border-style: dashed;
+      color: var(--text-secondary);
+    }
+
+    /* ─── Step 1: Venue search ─── */
+
+    .search-input {
+      width: 100%;
+      height: 42px;
+      padding: 0 12px 0 36px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg-card) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'/><path d='m21 21-4.3-4.3'/></svg>") no-repeat 12px center;
+      font-family: inherit;
+      font-size: 14px;
+    }
+    .search-input::placeholder { color: var(--text-muted); }
+
+    .venue-list {
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .venue-item {
+      display: flex;
+      gap: 10px;
+      padding: 12px;
+      background: var(--bg-card);
+      border-radius: 10px;
+      border: 1.5px solid transparent;
+      cursor: pointer;
+    }
+    .venue-item:hover { background: var(--bg-card-dim); }
+    .venue-item.selected {
+      border-color: var(--green-dark);
+      background: var(--bg-card);
+    }
+    .venue-item .icon {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--bg-surface);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+    .venue-item .body { flex: 1; min-width: 0; }
+    .venue-item .name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      line-height: 1.2;
+    }
+    .venue-item .addr {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.35;
+      margin-top: 2px;
+    }
+    .venue-item .tags {
+      display: flex;
+      gap: 5px;
+      margin-top: 6px;
+    }
+    .venue-item .tag {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: var(--bg-surface);
+      color: var(--text-secondary);
+    }
+    .venue-item .check {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--green-dark);
+      color: var(--text-inverted);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      align-self: center;
+    }
+
+    /* ─── Step 2: Stepper ─── */
+
+    .stepper {
+      display: inline-flex;
+      align-items: center;
+      gap: 0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg-card);
+      overflow: hidden;
+    }
+    .stepper button {
+      width: 44px;
+      height: 44px;
+      border: none;
+      background: transparent;
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--green-dark);
+      cursor: pointer;
+    }
+    .stepper button:hover { background: var(--bg-surface); }
+    .stepper button[disabled] { color: var(--text-muted); cursor: not-allowed; }
+    .stepper .value {
+      min-width: 56px;
+      text-align: center;
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    /* ─── Step 2: Crew chips ─── */
+
+    .crew-input-wrap {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg-card);
+      padding: 8px 8px 6px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .crew-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 4px 4px 10px;
+      background: var(--lime);
+      color: var(--lime-text);
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .crew-chip .x {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: rgba(45, 58, 0, 0.15);
+      color: var(--lime-text);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      cursor: pointer;
+    }
+    .crew-input-inline {
+      flex: 1;
+      min-width: 120px;
+      height: 28px;
+      border: none;
+      outline: none;
+      background: transparent;
+      font-family: inherit;
+      font-size: 14px;
+      padding: 0 6px;
+    }
+    .crew-input-inline::placeholder { color: var(--text-muted); }
+
+    .crew-preview {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+    .crew-preview .big {
+      color: var(--green-dark);
+      font-weight: 700;
+    }
+
+    /* ─── Step 2: Toggle ─── */
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .toggle-info { flex: 1; min-width: 0; }
+    .toggle-info .lbl {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: block;
+    }
+    .toggle-info .sub {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .switch {
+      position: relative;
+      width: 46px;
+      height: 26px;
+      border-radius: 999px;
+      background: var(--border-strong);
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.15s ease;
+    }
+    .switch::after {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: white;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+      transition: transform 0.15s ease;
+    }
+    .switch.on { background: var(--green-dark); }
+    .switch.on::after { transform: translateX(20px); }
+
+    /* ─── Step 2: Checkbox row ─── */
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+    }
+    .checkbox {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 1.5px solid var(--border-strong);
+      background: var(--bg-card);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .checkbox.checked {
+      background: var(--green-dark);
+      border-color: var(--green-dark);
+      color: var(--text-inverted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    /* ─── Step 2: Price row ─── */
+
+    .price-row {
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+    }
+    .price-input {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg-card);
+      padding: 0 12px;
+      height: 42px;
+    }
+    .price-input input {
+      flex: 1;
+      border: none;
+      outline: none;
+      background: transparent;
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+    .price-input .currency {
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .price-free {
+      padding: 0 14px;
+      height: 42px;
+      border-radius: 10px;
+      border: 1px solid var(--border-strong);
+      background: var(--bg-card);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    /* ─── Step 3: Textarea + preview ─── */
+
+    .textarea {
+      width: 100%;
+      min-height: 96px;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--text-primary);
+      line-height: 1.45;
+      resize: vertical;
+    }
+    .textarea::placeholder { color: var(--text-muted); }
+
+    .char-count {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: right;
+      margin-top: 4px;
+    }
+
+    .preview-card {
+      background: var(--bg-card);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .preview-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .preview-when {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    .preview-status {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--status-open);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .preview-venue {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+      line-height: 1.15;
+    }
+    .preview-meta {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .preview-meta .pill {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 5px;
+      background: var(--bg-surface);
+      color: var(--text-secondary);
+    }
+    .preview-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+    .preview-slots {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--green-dark);
+    }
+    .preview-slots .total { color: var(--text-secondary); font-weight: 500; }
+    .preview-price {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    /* ─── Tag ─── */
+
+    .mockup-tag {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      font-size: 10px;
+      color: var(--text-muted);
+      background: var(--bg-card);
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      font-family: 'SF Mono', Menlo, monospace;
+      pointer-events: none;
+      z-index: 99;
+    }
+  </style>
+</head>
+<body>
+  <span class="mockup-tag">mockups/create-match.html</span>
+
+  <div class="page">
+    <div class="page-head">
+      <h1>Create Match — wizard (3 steps)</h1>
+      <p>All 3 steps stacked for review. In production the wizard replaces one screen at a time.</p>
+    </div>
+
+    <div class="stack">
+
+      <!-- ═══════════════ STEP 1 ═══════════════ -->
+      <div class="step-card">
+        <span class="meta">Step 1 · When &amp; Where</span>
+        <div class="phone">
+
+          <div class="wiz-header">
+            <span class="wiz-title">New match</span>
+            <button class="wiz-close" type="button">✕</button>
+          </div>
+
+          <div class="wiz-progress">
+            <div class="wiz-dots">
+              <span class="dot active"></span>
+              <span class="bar"></span>
+              <span class="dot"></span>
+              <span class="bar"></span>
+              <span class="dot"></span>
+            </div>
+            <span class="wiz-step-label">Step 1 / 3</span>
+          </div>
+
+          <div class="wiz-body">
+
+            <!-- Date picker -->
+            <div>
+              <label class="field-label">Date</label>
+              <div class="cal-head">
+                <span class="cal-month">May 2026</span>
+                <div class="cal-nav">
+                  <button type="button" disabled>‹</button>
+                  <button type="button">›</button>
+                </div>
+              </div>
+              <div class="cal-grid">
+                <span class="cal-dow">Mo</span>
+                <span class="cal-dow">Tu</span>
+                <span class="cal-dow">We</span>
+                <span class="cal-dow">Th</span>
+                <span class="cal-dow">Fr</span>
+                <span class="cal-dow">Sa</span>
+                <span class="cal-dow">Su</span>
+                <!-- May 1 = Friday → 4 empty + 1,2,3 -->
+                <span class="cal-day disabled"></span>
+                <span class="cal-day disabled"></span>
+                <span class="cal-day disabled"></span>
+                <span class="cal-day disabled"></span>
+                <span class="cal-day disabled">1</span>
+                <span class="cal-day disabled">2</span>
+                <span class="cal-day disabled">3</span>
+                <span class="cal-day disabled">4</span>
+                <span class="cal-day disabled">5</span>
+                <span class="cal-day disabled">6</span>
+                <span class="cal-day disabled">7</span>
+                <span class="cal-day disabled">8</span>
+                <span class="cal-day disabled">9</span>
+                <span class="cal-day disabled">10</span>
+                <span class="cal-day disabled">11</span>
+                <span class="cal-day disabled">12</span>
+                <span class="cal-day disabled">13</span>
+                <span class="cal-day disabled">14</span>
+                <span class="cal-day disabled">15</span>
+                <span class="cal-day disabled">16</span>
+                <span class="cal-day disabled">17</span>
+                <span class="cal-day disabled">18</span>
+                <span class="cal-day disabled">19</span>
+                <span class="cal-day disabled">20</span>
+                <span class="cal-day disabled">21</span>
+                <span class="cal-day disabled">22</span>
+                <span class="cal-day disabled">23</span>
+                <span class="cal-day today selected">24</span>
+                <span class="cal-day">25</span>
+                <span class="cal-day">26</span>
+                <span class="cal-day">27</span>
+                <span class="cal-day">28</span>
+                <span class="cal-day">29</span>
+                <span class="cal-day">30</span>
+                <span class="cal-day">31</span>
+              </div>
+              <p class="field-helper">You can schedule up to 3 weeks ahead.</p>
+            </div>
+
+            <!-- Time -->
+            <div>
+              <label class="field-label">Time</label>
+              <div class="time-row">
+                <input class="time-input" type="text" value="19:00" />
+                <span class="time-meta">Prague time<br>Min. 30 min from now.</span>
+              </div>
+            </div>
+
+            <!-- Duration -->
+            <div>
+              <label class="field-label">Duration</label>
+              <div class="chip-row">
+                <button class="chip" type="button">60 min</button>
+                <button class="chip active" type="button">90 min</button>
+                <button class="chip" type="button">120 min</button>
+                <button class="chip custom" type="button">+ Custom</button>
+              </div>
+            </div>
+
+            <!-- Venue -->
+            <div>
+              <label class="field-label">Venue</label>
+              <input class="search-input" type="text" placeholder="Search venue…" />
+              <div class="venue-list">
+                <div class="venue-item selected">
+                  <span class="icon">⚽</span>
+                  <div class="body">
+                    <div class="name">Letná Park — main pitch</div>
+                    <div class="addr">Letenské sady 1, Prague 7</div>
+                    <div class="tags">
+                      <span class="tag">Grass</span>
+                      <span class="tag">Free</span>
+                    </div>
+                  </div>
+                  <span class="check">✓</span>
+                </div>
+                <div class="venue-item">
+                  <span class="icon">⚽</span>
+                  <div class="body">
+                    <div class="name">Stromovka — east field</div>
+                    <div class="addr">Stromovka, Prague 7</div>
+                    <div class="tags">
+                      <span class="tag">Grass</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="venue-item">
+                  <span class="icon">⚽</span>
+                  <div class="body">
+                    <div class="name">Riegrovy Sady — astro pitch</div>
+                    <div class="addr">Riegrovy sady, Prague 2</div>
+                    <div class="tags">
+                      <span class="tag">Hard</span>
+                      <span class="tag">Booked</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p class="field-helper">Can't find your spot? Venues are admin-managed in v1.</p>
+            </div>
+
+          </div>
+
+          <div class="wiz-footer">
+            <button class="btn btn-secondary" type="button" disabled>← Back</button>
+            <button class="btn btn-primary" type="button">Next →</button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ═══════════════ STEP 2 ═══════════════ -->
+      <div class="step-card">
+        <span class="meta">Step 2 · Format &amp; Details</span>
+        <div class="phone">
+
+          <div class="wiz-header">
+            <span class="wiz-title">New match</span>
+            <button class="wiz-close" type="button">✕</button>
+          </div>
+
+          <div class="wiz-progress">
+            <div class="wiz-dots">
+              <span class="dot done"></span>
+              <span class="bar done"></span>
+              <span class="dot active"></span>
+              <span class="bar"></span>
+              <span class="dot"></span>
+            </div>
+            <span class="wiz-step-label">Step 2 / 3</span>
+          </div>
+
+          <div class="wiz-body">
+
+            <!-- Total spots stepper -->
+            <div>
+              <label class="field-label">Total spots</label>
+              <div class="stepper">
+                <button type="button">−</button>
+                <span class="value">14</span>
+                <button type="button">+</button>
+              </div>
+              <p class="field-helper">Min 8 (4-a-side), max 30. Default 14 = 7-a-side.</p>
+            </div>
+
+            <!-- Crew chip input -->
+            <div>
+              <label class="field-label">Players coming with you</label>
+              <div class="crew-input-wrap">
+                <span class="crew-chip">Marek <span class="x">×</span></span>
+                <span class="crew-chip">Tomas <span class="x">×</span></span>
+                <input class="crew-input-inline" type="text" placeholder="Type a name and press Enter" />
+              </div>
+              <p class="crew-preview">Match will publish as <span class="big">3/14</span> — looking for 11.</p>
+              <p class="field-helper">Add friends who are playing for sure. We'll mark their spots as filled.</p>
+            </div>
+
+            <!-- Surface -->
+            <div>
+              <label class="field-label">Surface</label>
+              <div class="chip-row">
+                <button class="chip active" type="button">Grass</button>
+                <button class="chip" type="button">Hard surface</button>
+              </div>
+              <p class="field-helper">Pre-filled from venue. Letná offers both.</p>
+            </div>
+
+            <!-- Studs (visible only if Grass) -->
+            <div>
+              <div class="toggle-row">
+                <div class="toggle-info">
+                  <span class="lbl">Studs allowed</span>
+                  <span class="sub">Visible only for grass surfaces.</span>
+                </div>
+                <div class="switch on"></div>
+              </div>
+            </div>
+
+            <!-- Field booked checkbox -->
+            <div>
+              <label class="checkbox-row">
+                <span class="checkbox checked">✓</span>
+                <div>
+                  <span class="lbl" style="font-size: 14px; font-weight: 600;">Field is booked</span>
+                  <p class="field-helper" style="margin-top: 2px;">Can be set later via Edit.</p>
+                </div>
+              </label>
+            </div>
+
+            <!-- Price -->
+            <div>
+              <label class="field-label">Price per person</label>
+              <div class="price-row">
+                <div class="price-input">
+                  <input type="text" value="150" />
+                  <span class="currency">Kč</span>
+                </div>
+                <button class="price-free" type="button">Free</button>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="wiz-footer">
+            <button class="btn btn-secondary" type="button">← Back</button>
+            <button class="btn btn-primary" type="button">Next →</button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ═══════════════ STEP 3 ═══════════════ -->
+      <div class="step-card">
+        <span class="meta">Step 3 · Description &amp; Preview</span>
+        <div class="phone">
+
+          <div class="wiz-header">
+            <span class="wiz-title">New match</span>
+            <button class="wiz-close" type="button">✕</button>
+          </div>
+
+          <div class="wiz-progress">
+            <div class="wiz-dots">
+              <span class="dot done"></span>
+              <span class="bar done"></span>
+              <span class="dot done"></span>
+              <span class="bar done"></span>
+              <span class="dot active"></span>
+            </div>
+            <span class="wiz-step-label">Step 3 / 3</span>
+          </div>
+
+          <div class="wiz-body">
+
+            <!-- Description -->
+            <div>
+              <label class="field-label">Description <span style="color: var(--text-muted); font-weight: 500;">(optional)</span></label>
+              <textarea class="textarea" placeholder="Tell players the details: meeting point, what to bring, skill level, etc.">Casual mid-level game, all welcome. Meet at the main gate 10 min before. Bring water and a light/dark shirt.</textarea>
+              <p class="char-count">147 / 2000</p>
+            </div>
+
+            <!-- Preview -->
+            <div>
+              <label class="field-label">Preview</label>
+              <div class="preview-card">
+                <div class="preview-head">
+                  <span class="preview-when">Sun 24 May · 19:00</span>
+                  <span class="preview-status">3 / 14 · Open</span>
+                </div>
+                <div class="preview-venue">Letná Park — main pitch</div>
+                <div class="preview-meta">
+                  <span class="pill">90 min</span>
+                  <span class="pill">Grass</span>
+                  <span class="pill">Booked</span>
+                  <span class="pill">Studs OK</span>
+                </div>
+                <div class="preview-footer">
+                  <span class="preview-slots">3<span class="total"> / 14</span></span>
+                  <span class="preview-price">150 Kč</span>
+                </div>
+              </div>
+              <p class="field-helper">This is how the match will appear on Discover.</p>
+            </div>
+
+            <button class="btn-publish" type="button">Publish match</button>
+
+          </div>
+
+          <div class="wiz-footer">
+            <button class="btn btn-secondary" type="button">← Back</button>
+            <span style="font-size: 11px; color: var(--text-muted);">Press Publish above ↑</span>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>

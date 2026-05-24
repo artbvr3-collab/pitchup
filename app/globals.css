@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * ═══════════════════════════════════════════════════════
+ * PITCHUP — DESIGN TOKENS (light theme, v1)
+ * Source of truth: mockups/match.html header comment.
+ * Mirror in TypeScript: src/ui/tokens.ts.
+ * Tailwind binding: tailwind.config.ts (theme.extend).
+ * ═══════════════════════════════════════════════════════
+ */
+
+:root {
+  /* Surfaces */
+  --bg-base: #f5f0e8;
+  --bg-surface: #ede8dc;
+  --bg-card: #ffffff;
+  --bg-card-dim: #f9f7f4;
+
+  /* Primary accent (dark green) */
+  --green-dark: #0e5c2f;
+  --green-mid: #176b38;
+
+  /* Secondary accent (lime CTA) */
+  --lime: #c5e63c;
+  --lime-dark: #a8c82e;
+  --lime-text: #2d3a00;
+
+  /* Text */
+  --text-primary: #1a1a1a;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
+  --text-inverted: #ffffff;
+
+  /* Slot / status */
+  --status-open: #0e5c2f;
+  --status-almost: #d97706;
+  --status-full: #dc2626;
+  --status-in-progress: #6b7280;
+
+  /* Structure */
+  --border: #e0dad0;
+  --border-strong: #c7c0b3;
+  --border-focus: #0e5c2f;
+  --destructive: #dc2626;
+  --destructive-bg: #fee2e2;
+
+  /* Radii */
+  --radius-card: 16px;
+  --radius-btn: 12px;
+  --radius-chip: 9999px;
+  --radius-badge: 6px;
+
+  /* Shadows */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-btn: 0 2px 8px rgba(14, 92, 47, 0.25);
+  --shadow-btn-lime: 0 2px 8px rgba(197, 230, 60, 0.3);
+}
+
+/*
+ * Keep html font-size at the browser default (16px) so Tailwind's rem-based
+ * sizing (h-12 → 48px) matches the mockup. Body text is sized via a Tailwind
+ * utility in app/layout.tsx instead.
+ */
+body {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+}
+
+@layer utilities {
+  .focus-ring-green {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(14, 92, 47, 0.1);
+  }
+}
