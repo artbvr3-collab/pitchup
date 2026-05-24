@@ -15,12 +15,17 @@ Full architecture: [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 ## Quick start
 
 ```bash
+# 0. Get pnpm on PATH (one-time)
+#    If `pnpm --version` works — skip. Otherwise, either:
+corepack enable && corepack prepare pnpm@9.15.4 --activate
+#    or run every pnpm command below as `npx pnpm@9.15.4 ...`.
+
 # 1. Install
 pnpm install
 
 # 2. Bootstrap env
 cp .env.example .env.local
-# Fill in DATABASE_URL, AUTH_SECRET, AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET
+# Replace placeholders in DATABASE_URL, AUTH_SECRET, AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET.
 
 # 3. Database
 pnpm prisma migrate dev

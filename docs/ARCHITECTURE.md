@@ -17,7 +17,7 @@
 | Language | TypeScript 5.x, `strict: true` | No `any` without a comment justifying it. |
 | Styling | Tailwind CSS + shadcn/ui | Tokens extracted from `mockups/*.html`. |
 | Theme | `next-themes` | **Light-only on v1 launch** (decision 2026-05-24 — was previously dark; flipped after the cream/green/lime palette was anchored in `mockups/match.html`). `next-themes` wired with `forcedTheme="light"` so future dark mode is a single-line switch. Palette: cream surfaces (`#F5F0E8` / `#EDE8DC`), dark-green primary `#0E5C2F`, lime CTA `#C5E63C`. Canonical token list in the header comment of [`mockups/match.html`](../mockups/match.html); see §11. |
-| ORM | Prisma | Postgres-only; no other DBs ever. |
+| ORM | Prisma 6.x | Postgres-only; no other DBs ever. **Pinned to 6.x** — Prisma 7 dropped `url` from `schema.prisma` and demands `prisma.config.ts` + driver adapter; treat any 7.x bump as a separate ADR. |
 | DB | Postgres (Neon or Supabase managed) | Single DB, no read replicas in v1. |
 | Auth | Auth.js v5 (Google OAuth only) | JWT lifetime 333 days (see [global.md](./spec/pitchup-spec-global.md) "Authentication"). |
 | Validation | Zod | Single source of DTO shapes and env validation. |

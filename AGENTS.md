@@ -70,6 +70,8 @@ Full layout: [docs/ARCHITECTURE.md §2](./docs/ARCHITECTURE.md).
 - **Russian archive (`docs/spec/ru/`) is frozen.** Do not read it without explicit human instruction. See [docs/spec/CLAUDE.md](./docs/spec/CLAUDE.md).
 - **Don't set `font-size` on `html` / `body`.** Tailwind's rem-based sizing (`h-12` → 48px, `h-11` → 44px) assumes the browser default 16px root. Setting `html { font-size: 15px }` silently shrinks every rem-based class (Layer 0 ran into this: 48px buttons became 45px). Body text size is applied via Tailwind utility (`text-[15px]`) on the `<body>` element in `app/layout.tsx` instead.
 - **Component catalog is `/design`, not `/_design`.** Next.js App Router treats `_`-prefixed folders as private and excludes them from routing. The spec / older AGENTS notes may still say `/_design` — the live URL is `/design`. See [docs/ARCHITECTURE.md §11](./docs/ARCHITECTURE.md).
+- **`pnpm` may not be on PATH.** On the current dev machine corepack is absent and no global `pnpm` is installed. Run commands as `npx pnpm@9.15.4 <args>` (slower per-call but no setup), or have the human enable corepack once. Don't fall back to `npm install` — it would rewrite the lockfile.
+- **Prisma is pinned to 6.x, not 7.x.** Prisma 7 removed `url = env(...)` from `schema.prisma` and requires `prisma.config.ts` + a driver adapter. Our scaffolding (ARCHITECTURE.md §8, repo `src/shared/db/prisma.ts`) assumes classic Prisma. If you ever bump to 7 — open ADR-0004 first; do not silently upgrade.
 
 ---
 

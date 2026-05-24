@@ -1,0 +1,32 @@
+// PITCHUP — Prisma schema
+// Source of truth for the spec: docs/spec/pitchup-app-map.md → "User"
+//                              docs/spec/pitchup-spec-global.md → "Authentication"
+// Layer added: 1 (Auth slice). Subsequent layers grow this file.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Application user. Row is created only when onboarding completes —
+/// before that, an OAuth-authenticated visitor has no DB record.
+/// See docs/spec/pitchup-spec-global.md → "Onboarding guard".
+model User {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  googleSub          String    @unique @map("google_sub")
+  email              String
+  name               String
+  avatarUrl          String    @map("avatar_url")
+  contactInfo        String?   @map("contact_info")
+  emailNotifications Boolean   @default(true) @map("email_notifications")
+  isAdmin            Boolean   @default(false) @map("is_admin")
+  banned             Boolean   @default(false)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("users")
+}
