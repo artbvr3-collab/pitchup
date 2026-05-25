@@ -655,15 +655,25 @@ This same base set of tags — fallback on any screen that doesn't have more spe
 
 ### `/login`
 
-Auth.js v5 Google OAuth. Minimal page — just a Google button. No email/password.
+Auth.js v5 Google OAuth. Doubles as the public landing — a guest who lands on `/` is shown this screen. No email/password.
 
-**Disclaimer under the Google button.** One block in small grey text (2 lines), addresses "the paranoid user who's afraid to register with email":
-> *We use Google sign-in, so we never see or store your password — your account stays under your control.*
-> *Your email is used only for match notifications (approve, kick, morning reminder). It's never shown to other users or shared. If you lose access — recover through Google.*
+**Visual anchor:** [`mockups/login.html`](../../mockups/login.html) is canonical. The layout below mirrors that mockup top-to-bottom.
 
-Static text, no links (privacy policy is linked separately in footer `/legal/*`). No "I agree" checkboxes — Google OAuth and its own consent screen cover the legal side.
+**Layout (top → bottom).**
 
-**If already signed in** → redirect to `callbackUrl` (if present and passed Auth.js same-origin validation) or to `/my-matches`. Google button is not shown.
+1. **TopBar** — wordmark (`PITCH` in dark-green + `UP` in a lime pill) on the left, `Early Alpha` chip (lime pill with dot) on the right. No `[Sign in]` button — the screen IS the sign-in.
+2. **Hero text** — `Pickup football in Prague.` (h1, 42px extra-bold dark-green, line break between "football" and "in"). Sub-line in secondary grey: `See who's playing this week and grab a spot. Captains approve, you show up.`
+3. **Three bullets** — replace a hero image (no imagery in v1; accepted trade-off, see mockup header comment). Each bullet: 22×22 dark-green circle with white `→` glyph, followed by bold lead + secondary tail:
+   - `Find a match.` Filter by date, format, level.
+   - `Tap to join.` Captain approves, you get notified.
+   - `Cash on the field.` No fees, no payments through the app.
+4. **Spacer** — flex-grow, min 32px. Pushes the CTA to the bottom of the viewport on tall screens; reflows naturally on short ones.
+5. **CTA** — `[Sign in with Google]`, 56px height, dark-green primary, full-width. Inside: white circle with green "G" glyph + label. Tap → `signIn("google", { callbackUrl })` (Auth.js v5).
+6. **Fine print** — centred, 12px muted. Two lines: `Side project — no fees, no ads.` (slightly stronger grey) / `By signing in you agree to the` [terms](#) (link to `/legal/terms`).
+
+No "I agree" checkboxes — Google OAuth and its own consent screen cover the legal side.
+
+**If already signed in** → redirect to `callbackUrl` (if present and passed Auth.js same-origin validation) or to `/my-matches`. CTA is not shown.
 
 **Banned state (`?error=banned`).** When a banned user completed OAuth, backend dropped the session and redirected here (see "Ban / account deletion" above). On this page **everything is hidden** — Google button, password disclaimer, heading. Instead — a central block:
 - Heading: "Account banned"
