@@ -1,7 +1,10 @@
 // PITCHUP — Prisma schema
-// Source of truth for the spec: docs/spec/pitchup-app-map.md → "User"
-//                              docs/spec/pitchup-spec-global.md → "Authentication"
-// Layer added: 1 (Auth slice). Subsequent layers grow this file.
+// Source of truth for the spec: docs/spec/pitchup-app-map.md → "Main entities"
+//                              docs/spec/pitchup-spec-global.md → "Authentication", "Slot math", "Field surface", "Cover venue"
+//                              docs/spec/pitchup-spec-match.md → "Match states"
+// Layers: 1 (User), 2 (Match + Venue read-only). Subsequent layers grow this file
+// (JoinRequest, Watch, ChatMessage, ChatRead, Notification, Report, AdminAction,
+// ReminderSent, Like — see app-map ERD).
 
 generator client {
   provider = "prisma-client-js"
@@ -28,5 +31,79 @@ model User {
   deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(6)
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  captainMatches Match[] @relation("MatchCaptain")
+
   @@map("users")
+}
+
+/// Physical pitch / venue where matches are played. Admin-managed.
+/// Fields per docs/spec/pitchup-app-map.md → "Main entities" → Venue row.
+/// `surface` is text[] (a venue may offer both grass and hard) — app-level
+/// validation against the tokens `grass` / `hard`, not a Postgres enum
+/// (see global.md → "Field surface").
+/// `cover_id` is a slug into the cover palette, deterministic by venue.id
+/// when not explicitly set (see global.md → "Cover venue").
+/// `active = false` hides the venue from new-match creation but does not
+/// affect existing matches (see personal.md → "/admin/venues").
+model Venue {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String
+  address       String
+  lat           Float    @db.DoublePrecision
+  lng           Float    @db.DoublePrecision
+  googleMapsUrl String?  @map("google_maps_url")
+  surface       String[] @db.Text
+  coverId       String   @map("cover_id") @db.VarChar(40)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  matches Match[]
+
+  @@map("venues")
+}
+
+/// A scheduled football match. Captain hosts; players join via JoinRequest
+/// (added in Layer 4). Status is computed on-read from `startTime`, `duration`,
+/// and `cancelledAt` — there is NO status column (see match.md → "Match states").
+///
+/// Slot math: `filled = 1 (captain) + captainCrew.length + Σ(accepted JoinRequest)` —
+/// canonical formula in global.md → "Slot math". Always via `computeSlots(match)`.
+///
+/// `coverId` is a snapshot of `venue.coverId` taken at INSERT time. Changing the
+/// venue's cover later does NOT propagate to existing matches (intentional
+/// denormalization; see app-map.md audit notes + global.md → "Cover venue").
+///
+/// `captainCrew` is `NOT NULL DEFAULT '{}'` — empty array means an open match
+/// with no stub players. `.length` is always safe.
+///
+/// `surface` validated app-side against `grass` / `hard` (not a Postgres enum;
+/// see global.md → "Field surface").
+model Match {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  captainId          String    @map("captain_id") @db.Uuid
+  venueId            String    @map("venue_id") @db.Uuid
+  startTime          DateTime  @map("start_time") @db.Timestamptz(6)
+  duration           Int
+  totalSpots         Int       @map("total_spots") @db.SmallInt
+  price              Int
+  surface            String
+  studsAllowed       Boolean   @map("studs_allowed")
+  fieldBooked        Boolean   @default(false) @map("field_booked")
+  description        String?
+  descriptionHidden  Boolean   @default(false) @map("description_hidden")
+  captainCrew        String[]  @default([]) @map("captain_crew") @db.Text
+  cancelledAt        DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  cancelReason       String?   @map("cancel_reason")
+  cancelReasonHidden Boolean   @default(false) @map("cancel_reason_hidden")
+  coverId            String    @map("cover_id") @db.VarChar(40)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  captain User  @relation("MatchCaptain", fields: [captainId], references: [id])
+  venue   Venue @relation(fields: [venueId], references: [id])
+
+  @@index([startTime])
+  @@index([venueId])
+  @@index([captainId])
+  @@map("matches")
 }

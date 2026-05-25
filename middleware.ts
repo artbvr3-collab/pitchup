@@ -25,7 +25,9 @@ import { userRepository } from "@/src/auth/infrastructure/repositories";
 export const runtime = "nodejs";
 
 // Pages a guest may open without a session AND a signed-in user may revisit.
-const PUBLIC_PATHS: readonly string[] = ["/", "/login", "/design"];
+// `/games` is the public Discover feed — accessible to guests per spec
+// (docs/spec/pitchup-spec-discovery.md → "/games").
+const PUBLIC_PATHS: readonly string[] = ["/", "/login", "/design", "/games"];
 const PUBLIC_PREFIXES: readonly string[] = ["/legal/", "/design/"];
 
 // Paths a signed-in user *without* a DB row may access without being bounced
