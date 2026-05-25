@@ -1,12 +1,13 @@
 /**
  * MODULE: ui.components.match-card
- * PURPOSE: Discover-feed card. Visualises one upcoming match: cover banner,
- *          venue + address, Prague-TZ date/time, surface + studs + booked
- *          chips, slot counter with status color, price label.
+ * PURPOSE: Discover-feed card. Visualises one upcoming match: venue + address,
+ *          status pill (top-right), Prague-TZ date/time, surface + studs +
+ *          booked chips, slot counter with status color, price label.
  *          Approximation until a canonical `mockups/games.html` ships — the
  *          card uses the same primitives + tokens as match.html
  *          (.preview-card, .player-chip), so the visual identity is already
- *          consistent with the rest of the brand.
+ *          consistent with the rest of the brand. Cover image deliberately
+ *          omitted for now; will be reintroduced when venue photos exist.
  * LAYER: ui
  * DEPENDENCIES: ./card, ./chip, ../lib/cn
  * CONSUMED BY: app/(public)/games/page.tsx
@@ -56,7 +57,6 @@ export interface MatchCardProps {
   readonly studsAllowed: boolean;
   readonly fieldBooked: boolean;
   readonly price: number; // CZK; 0 = Free
-  readonly coverId: string;
   readonly status:
     | "open"
     | "almostFull"
@@ -88,19 +88,6 @@ function formatPrice(czk: number): string {
   return czk === 0 ? "Free" : `${czk} Kč`;
 }
 
-// Cover slug → deterministic gradient (same slug yields the same colors on
-// every render). Real venue photos will replace this when the cover palette
-// is finalised.
-function coverGradient(coverId: string): string {
-  let hash = 0;
-  for (let i = 0; i < coverId.length; i += 1) {
-    hash = (hash * 31 + coverId.charCodeAt(i)) >>> 0;
-  }
-  const hueA = hash % 360;
-  const hueB = (hueA + 40) % 360;
-  return `linear-gradient(135deg, hsl(${hueA} 45% 35%) 0%, hsl(${hueB} 55% 25%) 100%)`;
-}
-
 export function MatchCard(props: MatchCardProps) {
   const dateLabel = dateFormatter.format(props.startTime);
   const timeLabel = timeFormatter.format(props.startTime);
@@ -114,30 +101,25 @@ export function MatchCard(props: MatchCardProps) {
         "block overflow-hidden rounded-card bg-bg-card shadow-card transition-shadow hover:shadow-btn",
       )}
     >
-      <div
-        className="relative h-24 w-full"
-        style={{ backgroundImage: coverGradient(props.coverId) }}
-        aria-hidden
-      >
-        <span
-          className={cn(
-            "absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-chip px-2.5 py-1 text-[11px] font-semibold text-text-inverted",
-            statusColor,
-          )}
-        >
-          <span className="size-1.5 rounded-full bg-text-inverted/80" />
-          {statusLabel}
-        </span>
-      </div>
-
       <div className="space-y-3 p-4">
-        <div>
-          <div className="text-[15px] font-semibold leading-tight text-text-primary">
-            {props.venueName}
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-[15px] font-semibold leading-tight text-text-primary">
+              {props.venueName}
+            </div>
+            <div className="mt-0.5 text-[12px] text-text-secondary">
+              {props.venueAddress}
+            </div>
           </div>
-          <div className="mt-0.5 text-[12px] text-text-secondary">
-            {props.venueAddress}
-          </div>
+          <span
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1.5 rounded-chip px-2.5 py-1 text-[11px] font-semibold text-text-inverted",
+              statusColor,
+            )}
+          >
+            <span className="size-1.5 rounded-full bg-text-inverted/80" />
+            {statusLabel}
+          </span>
         </div>
 
         <div className="flex items-baseline gap-2 text-[13px] text-text-primary">

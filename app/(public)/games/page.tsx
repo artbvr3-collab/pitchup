@@ -51,7 +51,6 @@ export default async function GamesPage() {
                 studsAllowed={match.studsAllowed}
                 fieldBooked={match.fieldBooked}
                 price={match.price}
-                coverId={match.coverId}
                 status={match.status}
                 slots={{
                   filled: match.slots.filled,
