@@ -75,4 +75,13 @@ body {
     outline: none;
     box-shadow: 0 0 0 3px rgba(14, 92, 47, 0.1);
   }
+  /* Used by the /games day picker strip — horizontal scroll without the
+     native scrollbar gutter eating into the 56px sticky height. */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }

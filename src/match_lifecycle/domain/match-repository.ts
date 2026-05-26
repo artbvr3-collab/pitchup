@@ -2,33 +2,103 @@
  * MODULE: match_lifecycle.domain.match-repository
  * PURPOSE: Repository port for the Match aggregate. Domain owns the contract;
  *          infrastructure provides the Prisma-backed adapter.
- *          Layer 2 scope: read-only Discover. listUpcoming() returns matches
- *          starting from `now` onwards (Cancelled matches are excluded —
- *          public Discover hides them, per spec).
+ *          Layer 2.5 scope: filtered + paged Discover. `findDiscoverPage()`
+ *          accepts a fully-resolved filter DTO (date already clamped to the
+ *          21-day horizon, cursor decoded) and returns one page plus an
+ *          optional `nextCursor` for "Show more".
+ *          Layer 3 scope: `create()` inserts a new Match row. No advisory
+ *          lock is taken — the id doesn't exist yet (spec: "Concurrency &
+ *          locking" → exceptions).
  * LAYER: domain
- * DEPENDENCIES: ./match
- * CONSUMED BY: src/match_lifecycle/application/*,
+ * DEPENDENCIES: ./match, src/auth/domain/user
+ * CONSUMED BY: src/match_lifecycle/application/list-discover-matches.ts,
+ *              src/match_lifecycle/application/create-match-service.ts,
  *              src/match_lifecycle/infrastructure/prisma-match-repository.ts
  * INVARIANTS:
- *   - Sort order is `startTime ASC, id ASC` — stable for cursor pagination
- *     when filters arrive in Layer 2.5.
- *   - Cancelled matches (cancelledAt IS NOT NULL) are not returned by
- *     listUpcoming(). They surface only on the captain's "My matches > Past"
- *     view (Layer 6).
- *   - Past matches (startTime < now) are excluded from public Discover —
- *     they live only in personal views.
+ *   - Sort order is `startTime ASC, id ASC` — stable for keyset pagination.
+ *   - Cancelled matches (cancelledAt IS NOT NULL) are excluded.
+ *   - Past matches (startTime < `now`) are excluded; the day-window already
+ *     restricts to a future Prague day, but `now` is honored explicitly so
+ *     "today" still hides games that have already kicked off.
+ *   - The `distanceKm` filter requires a `location` — when absent it is
+ *     silently ignored (per spec). The repository never throws on missing
+ *     location; the UI surfaces a banner separately.
+ *   - `create()` returns the persisted `MatchId`; the row's `coverId` is the
+ *     snapshot value passed in (callers resolve it from the chosen venue).
  * RELATED DOCS: docs/spec/pitchup-spec-discovery.md → "/games",
+ *               docs/spec/pitchup-spec-match.md → "/matches/new",
  *               docs/ARCHITECTURE.md §8, ADR-0003.
  */
-import type { MatchWithVenue } from "./match";
+import type { UserId } from "@/src/auth/domain/user";
+import type { MatchId, MatchWithVenue } from "./match";
+import type { Surface, VenueId } from "./venue";
 
-export interface ListUpcomingOptions {
-  /** Reference time; matches with startTime < now are excluded. */
+export type DiscoverTimeOfDay = "morning" | "afternoon" | "evening";
+export type DiscoverSpotsBucket = "1" | "2-3" | "4+";
+
+export interface DiscoverLocation {
+  readonly lat: number;
+  readonly lng: number;
+}
+
+export interface DiscoverCursorInput {
+  readonly startTime: Date;
+  readonly id: string;
+}
+
+export interface FindDiscoverPageOptions {
+  /** Reference time; matches whose startTime < `now` are excluded. */
   readonly now: Date;
-  /** Page size. Spec: 50. Defaults are caller-provided to keep this pure. */
+  /** Half-open UTC interval for the selected Prague calendar day. */
+  readonly dayUtcStart: Date;
+  readonly dayUtcEnd: Date;
+  /** Page size (caller-controlled; spec default = 50). */
   readonly limit: number;
+  /** Keyset cursor (last seen row), `null` = first page. */
+  readonly cursor: DiscoverCursorInput | null;
+  /** Empty array = any time-of-day. */
+  readonly timeOfDay: readonly DiscoverTimeOfDay[];
+  /** N-a-side chips (mapped to `total_spots` bands by the adapter). */
+  readonly gameSize: readonly number[];
+  /** Spots-left bucket; `null` = Any (includes full). */
+  readonly spotsLeft: DiscoverSpotsBucket | null;
+  /** Price = 0 filter. */
+  readonly freeOnly: boolean;
+  /** Field-booked-only filter. */
+  readonly fieldBookedOnly: boolean;
+  /** Case-insensitive venue-name substring. Empty = no filter. */
+  readonly venueSearch: string;
+  /** Radius (km) from `location`. `null` = no distance filter. */
+  readonly distanceKm: number | null;
+  /** Required iff `distanceKm` should be honored; otherwise filter is dropped. */
+  readonly location: DiscoverLocation | null;
+}
+
+export interface FindDiscoverPageResult {
+  readonly rows: readonly MatchWithVenue[];
+  /** Cursor to pass back for the next page; `null` when there is no next. */
+  readonly nextCursor: DiscoverCursorInput | null;
+}
+
+export interface CreateMatchPersistenceInput {
+  readonly captainId: UserId;
+  readonly venueId: VenueId;
+  readonly startTime: Date;
+  readonly duration: number;
+  readonly totalSpots: number;
+  readonly price: number;
+  readonly surface: Surface;
+  readonly studsAllowed: boolean;
+  readonly fieldBooked: boolean;
+  readonly description: string | null;
+  readonly captainCrew: readonly string[];
+  /** Snapshot of `venue.coverId` taken at INSERT time. Immutable thereafter. */
+  readonly coverId: string;
 }
 
 export interface MatchRepository {
-  listUpcoming(options: ListUpcomingOptions): Promise<readonly MatchWithVenue[]>;
+  findDiscoverPage(
+    options: FindDiscoverPageOptions,
+  ): Promise<FindDiscoverPageResult>;
+  create(input: CreateMatchPersistenceInput): Promise<MatchId>;
 }

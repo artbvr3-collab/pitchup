@@ -1,25 +1,38 @@
 /**
  * MODULE: match_lifecycle.application.list-discover-matches
- * PURPOSE: Use case for the public Discover page (`/games`). Pulls upcoming
- *          matches from the repository and decorates each with the canonical
- *          slot math + derived status, returning a view model ready for the
- *          Server Component to render. Layer 2 scope is read-only and
- *          unfiltered — filters / cursor pagination land in Layer 2.5.
+ * PURPOSE: Use case for the public Discover page (`/games`) and the
+ *          `GET /api/matches/discover` route handler. Resolves the parsed
+ *          filter DTO into a repository query (Prague-day → UTC window,
+ *          distance-without-location guard), runs the page query, and
+ *          decorates each row with canonical slot math + derived status.
  * LAYER: application
- * DEPENDENCIES: ../domain/*
+ * DEPENDENCIES: ../domain/*, ../../shared/time/prague, ./discover-filters
  * CONSUMED BY: src/match_lifecycle/composition.ts → app/(public)/games/page.tsx
+ *              and app/api/matches/discover/route.ts
  * INVARIANTS:
- *   - Status / slots are NEVER read from the DB; always computed here so a
- *     single canonical formula is enforced.
+ *   - Status / slots are NEVER read from the DB; always computed here so the
+ *     canonical formulas in slot-math.ts and match-status.ts are the only
+ *     source.
  *   - `acceptedSlots` is hardcoded to 0 until Layer 4 (JoinRequest) adds the
  *     accepted-requests query.
+ *   - `distanceKm` is silently dropped when no `location` is provided (per
+ *     spec: SSR ignores `?distance=` without location; UI shows a banner).
+ *   - Returned `nextCursor` is an opaque DTO; the route handler/server
+ *     component re-encodes via `encodeCursor()` before passing to the URL.
  * RELATED DOCS: docs/spec/pitchup-spec-discovery.md → "/games".
  */
+import { pragueDay } from "@/src/shared/time/prague";
+
 import type { MatchId } from "../domain/match";
-import type { MatchRepository } from "../domain/match-repository";
+import type {
+  DiscoverCursorInput,
+  DiscoverLocation,
+  MatchRepository,
+} from "../domain/match-repository";
 import { deriveMatchStatus, type MatchStatus } from "../domain/match-status";
 import { computeSlots, type SlotInfo } from "../domain/slot-math";
 import type { Surface, VenueId } from "../domain/venue";
+import type { DiscoverFilters } from "./discover-filters";
 
 export interface DiscoverMatchView {
   readonly id: MatchId;
@@ -39,24 +52,49 @@ export interface DiscoverMatchView {
   readonly status: MatchStatus;
 }
 
+export interface DiscoverPage {
+  readonly rows: readonly DiscoverMatchView[];
+  readonly nextCursor: DiscoverCursorInput | null;
+}
+
 export interface ListDiscoverMatchesOptions {
+  readonly filters: DiscoverFilters;
+  /** Page size; spec default = 50. */
   readonly limit?: number;
   /** Injectable for tests; defaults to `new Date()` in production callers. */
   readonly now?: Date;
+  /** Optional saved location for the distance filter (client localStorage). */
+  readonly location?: DiscoverLocation | null;
 }
 
 export class ListDiscoverMatchesService {
   constructor(private readonly matches: MatchRepository) {}
 
-  async execute(
-    options: ListDiscoverMatchesOptions = {},
-  ): Promise<readonly DiscoverMatchView[]> {
+  async execute(options: ListDiscoverMatchesOptions): Promise<DiscoverPage> {
     const now = options.now ?? new Date();
     const limit = options.limit ?? 50;
+    const filters = options.filters;
+    const location = options.location ?? null;
+    const day = pragueDay(filters.date);
 
-    const rows = await this.matches.listUpcoming({ now, limit });
+    const page = await this.matches.findDiscoverPage({
+      now,
+      dayUtcStart: day.utcStart,
+      dayUtcEnd: day.utcEnd,
+      limit,
+      cursor: filters.cursor,
+      timeOfDay: filters.timeOfDay,
+      gameSize: [...filters.gameSize],
+      spotsLeft: filters.spotsLeft,
+      freeOnly: filters.freeOnly,
+      fieldBookedOnly: filters.fieldBookedOnly,
+      venueSearch: filters.venueSearch,
+      // Drop distance filter when no location is saved (spec).
+      distanceKm: location ? filters.distanceKm : null,
+      location,
+    });
 
-    return rows.map((match): DiscoverMatchView => {
+    const rows = page.rows.map((match): DiscoverMatchView => {
       const slots = computeSlots(match, 0);
       const status = deriveMatchStatus(match, slots, now);
       return {
@@ -77,5 +115,7 @@ export class ListDiscoverMatchesService {
         status,
       };
     });
+
+    return { rows, nextCursor: page.nextCursor };
   }
 }

@@ -1,48 +1,69 @@
 /**
  * MODULE: tests.match_lifecycle.application.list-discover-matches
- * PURPOSE: Unit tests for ListDiscoverMatchesService — the read-only Discover
- *          use case. Verifies that the service threads `now` / `limit` to the
- *          repository and decorates each row with the canonical slot math +
- *          derived status before returning view models.
+ * PURPOSE: Verify that the use case wires the parsed filter DTO into the
+ *          repository, drops `distanceKm` when no location is supplied,
+ *          threads cursor + limit through, and decorates each row with the
+ *          canonical slot math + derived status.
  * LAYER: tests / application
  * TESTS FOR: src/match_lifecycle/application/list-discover-matches.ts
- * MOCKS: MatchRepository port replaced with a hand-rolled FakeMatchRepository
- *        — per CODING_STANDARDS §9 "no mocks of code you own beyond ports".
+ * MOCKS: MatchRepository port replaced with a hand-rolled fake (per
+ *        CODING_STANDARDS §9 "no mocks of code you own beyond ports").
  * RELATED DOCS: docs/spec/pitchup-spec-discovery.md → "/games".
  */
 import { describe, it, expect } from "vitest";
 
 import { asUserId } from "@/src/auth/domain/user";
+import {
+  parseDiscoverFilters,
+  type DiscoverFilters,
+} from "@/src/match_lifecycle/application/discover-filters";
 import { ListDiscoverMatchesService } from "@/src/match_lifecycle/application/list-discover-matches";
 import { asMatchId, type MatchWithVenue } from "@/src/match_lifecycle/domain/match";
 import type {
-  ListUpcomingOptions,
+  CreateMatchPersistenceInput,
+  FindDiscoverPageOptions,
+  FindDiscoverPageResult,
   MatchRepository,
 } from "@/src/match_lifecycle/domain/match-repository";
 import { asVenueId, type Surface } from "@/src/match_lifecycle/domain/venue";
 
 class FakeMatchRepository implements MatchRepository {
-  public listCalls: ListUpcomingOptions[] = [];
+  public calls: FindDiscoverPageOptions[] = [];
   private rows: readonly MatchWithVenue[] = [];
+  private nextCursor: FindDiscoverPageResult["nextCursor"] = null;
 
-  seed(rows: readonly MatchWithVenue[]): void {
+  seed(
+    rows: readonly MatchWithVenue[],
+    nextCursor: FindDiscoverPageResult["nextCursor"] = null,
+  ): void {
     this.rows = rows;
+    this.nextCursor = nextCursor;
   }
 
-  async listUpcoming(options: ListUpcomingOptions): Promise<readonly MatchWithVenue[]> {
-    this.listCalls.push(options);
-    return this.rows.slice(0, options.limit);
+  async findDiscoverPage(
+    options: FindDiscoverPageOptions,
+  ): Promise<FindDiscoverPageResult> {
+    this.calls.push(options);
+    return { rows: this.rows, nextCursor: this.nextCursor };
+  }
+
+  async create(_input: CreateMatchPersistenceInput): Promise<never> {
+    throw new Error("not implemented in FakeMatchRepository for discover tests");
   }
 }
 
-const NOW = new Date("2026-05-26T12:00:00.000Z");
+const NOW = new Date("2026-05-26T10:00:00Z"); // Prague 2026-05-26
+
+function defaultFilters(): DiscoverFilters {
+  return parseDiscoverFilters(new URLSearchParams(""), { now: NOW });
+}
 
 function makeMatch(overrides: Partial<MatchWithVenue> = {}): MatchWithVenue {
-  const defaults: MatchWithVenue = {
+  const base: MatchWithVenue = {
     id: asMatchId("m1"),
     captainId: asUserId("u1"),
     venueId: asVenueId("v1"),
-    startTime: new Date("2026-05-27T18:00:00.000Z"),
+    startTime: new Date("2026-05-26T16:00:00Z"),
     duration: 90,
     totalSpots: 14,
     price: 200,
@@ -70,123 +91,113 @@ function makeMatch(overrides: Partial<MatchWithVenue> = {}): MatchWithVenue {
       active: true,
     },
   };
-  return { ...defaults, ...overrides };
+  return { ...base, ...overrides };
 }
 
 describe("ListDiscoverMatchesService.execute", () => {
-  it("threads `now` and `limit` into the repository", async () => {
+  it("translates the Prague-day filter into a UTC half-open window", async () => {
     const repo = new FakeMatchRepository();
     const service = new ListDiscoverMatchesService(repo);
 
-    await service.execute({ now: NOW, limit: 25 });
+    await service.execute({ filters: defaultFilters(), now: NOW, limit: 50 });
 
-    expect(repo.listCalls).toHaveLength(1);
-    expect(repo.listCalls[0]).toEqual({ now: NOW, limit: 25 });
+    const call = repo.calls[0]!;
+    // Prague 2026-05-26 in summer = UTC 2026-05-25T22:00 → 2026-05-26T22:00.
+    expect(call.dayUtcStart.toISOString()).toBe("2026-05-25T22:00:00.000Z");
+    expect(call.dayUtcEnd.toISOString()).toBe("2026-05-26T22:00:00.000Z");
+    expect(call.now).toBe(NOW);
+    expect(call.limit).toBe(50);
   });
 
-  it("defaults limit to 50 when not provided", async () => {
+  it("forwards each sheet filter to the repository unchanged", async () => {
     const repo = new FakeMatchRepository();
     const service = new ListDiscoverMatchesService(repo);
 
-    await service.execute({ now: NOW });
+    const filters = parseDiscoverFilters(
+      new URLSearchParams(
+        "time=evening&size=7&spots=2-3&free=1&booked=1&distance=3",
+      ),
+      { now: NOW },
+    );
 
-    expect(repo.listCalls[0]?.limit).toBe(50);
-  });
-
-  it("defaults now to new Date() when not provided", async () => {
-    const repo = new FakeMatchRepository();
-    const service = new ListDiscoverMatchesService(repo);
-
-    const before = Date.now();
-    await service.execute({});
-    const after = Date.now();
-
-    const usedNow = repo.listCalls[0]?.now.getTime() ?? 0;
-    expect(usedNow).toBeGreaterThanOrEqual(before);
-    expect(usedNow).toBeLessThanOrEqual(after);
-  });
-
-  it("decorates each match with derived status and slot info", async () => {
-    const repo = new FakeMatchRepository();
-    repo.seed([
-      // Pre-game, open (captain alone, capacity 14)
-      makeMatch({
-        id: asMatchId("m-open"),
-        startTime: new Date("2026-05-27T18:00:00.000Z"),
-        totalSpots: 14,
-        captainCrew: [],
-      }),
-      // Pre-game, almostFull (free = 2)
-      makeMatch({
-        id: asMatchId("m-almost"),
-        startTime: new Date("2026-05-28T18:00:00.000Z"),
-        totalSpots: 14,
-        captainCrew: ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"], // 1+11=12, free=2
-      }),
-      // Pre-game, full
-      makeMatch({
-        id: asMatchId("m-full"),
-        startTime: new Date("2026-05-29T18:00:00.000Z"),
-        totalSpots: 10,
-        captainCrew: ["a", "b", "c", "d", "e", "f", "g", "h", "i"], // 1+9=10, free=0
-      }),
-    ]);
-
-    const service = new ListDiscoverMatchesService(repo);
-    const result = await service.execute({ now: NOW });
-
-    expect(result).toHaveLength(3);
-
-    const open = result[0]!;
-    expect(open.status).toBe("open");
-    expect(open.slots.filled).toBe(1);
-    expect(open.slots.free).toBe(13);
-
-    const almost = result[1]!;
-    expect(almost.status).toBe("almostFull");
-    expect(almost.slots.filled).toBe(12);
-    expect(almost.slots.free).toBe(2);
-
-    const full = result[2]!;
-    expect(full.status).toBe("full");
-    expect(full.slots.filled).toBe(10);
-    expect(full.slots.free).toBe(0);
-    expect(full.slots.isFull).toBe(true);
-  });
-
-  it("flattens venue into the view model (id / name / address only)", async () => {
-    const repo = new FakeMatchRepository();
-    repo.seed([
-      makeMatch({
-        venue: {
-          id: asVenueId("v-letna"),
-          name: "Letná Sportcentrum",
-          address: "Korunovační 29, Praha 7",
-          lat: 50.1029,
-          lng: 14.4263,
-          googleMapsUrl: null,
-          surface: ["hard"],
-          coverId: "cover-002",
-          active: true,
-        },
-      }),
-    ]);
-
-    const service = new ListDiscoverMatchesService(repo);
-    const [view] = await service.execute({ now: NOW });
-
-    expect(view?.venue).toEqual({
-      id: asVenueId("v-letna"),
-      name: "Letná Sportcentrum",
-      address: "Korunovační 29, Praha 7",
+    await service.execute({
+      filters,
+      now: NOW,
+      limit: 50,
+      location: { lat: 50.08, lng: 14.43 },
     });
+
+    const call = repo.calls[0]!;
+    expect(call.timeOfDay).toEqual(["evening"]);
+    expect(call.gameSize).toEqual([7]);
+    expect(call.spotsLeft).toBe("2-3");
+    expect(call.freeOnly).toBe(true);
+    expect(call.fieldBookedOnly).toBe(true);
+    expect(call.distanceKm).toBe(3);
+    expect(call.location).toEqual({ lat: 50.08, lng: 14.43 });
   });
 
-  it("returns an empty array when the repository returns none", async () => {
+  it("silently drops distanceKm when no location is supplied (spec)", async () => {
     const repo = new FakeMatchRepository();
     const service = new ListDiscoverMatchesService(repo);
 
-    const result = await service.execute({ now: NOW });
-    expect(result).toEqual([]);
+    const filters = parseDiscoverFilters(new URLSearchParams("distance=5"), {
+      now: NOW,
+    });
+
+    await service.execute({ filters, now: NOW, limit: 50, location: null });
+
+    const call = repo.calls[0]!;
+    expect(call.distanceKm).toBeNull();
+    expect(call.location).toBeNull();
+  });
+
+  it("passes the cursor through to the repository", async () => {
+    const repo = new FakeMatchRepository();
+    const service = new ListDiscoverMatchesService(repo);
+
+    const cursor = {
+      startTime: new Date("2026-05-26T17:30:00Z"),
+      id: "abc",
+    };
+    const filters: DiscoverFilters = { ...defaultFilters(), cursor };
+
+    await service.execute({ filters, now: NOW, limit: 50 });
+
+    expect(repo.calls[0]!.cursor).toEqual(cursor);
+  });
+
+  it("decorates rows with derived status + slot math and returns nextCursor", async () => {
+    const repo = new FakeMatchRepository();
+    repo.seed(
+      [
+        makeMatch({
+          id: asMatchId("m-open"),
+          startTime: new Date("2026-05-26T18:00:00Z"),
+          totalSpots: 14,
+          captainCrew: [],
+        }),
+        makeMatch({
+          id: asMatchId("m-full"),
+          startTime: new Date("2026-05-26T19:00:00Z"),
+          totalSpots: 10,
+          captainCrew: ["a", "b", "c", "d", "e", "f", "g", "h", "i"],
+        }),
+      ],
+      { startTime: new Date("2026-05-26T19:00:00Z"), id: "m-full" },
+    );
+
+    const service = new ListDiscoverMatchesService(repo);
+    const result = await service.execute({
+      filters: defaultFilters(),
+      now: NOW,
+      limit: 50,
+    });
+
+    expect(result.rows[0]!.status).toBe("open");
+    expect(result.rows[0]!.slots.free).toBe(13);
+    expect(result.rows[1]!.status).toBe("full");
+    expect(result.rows[1]!.slots.free).toBe(0);
+    expect(result.nextCursor?.id).toBe("m-full");
   });
 });

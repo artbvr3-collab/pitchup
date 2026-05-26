@@ -1,90 +1,257 @@
 /**
  * MODULE: match_lifecycle.infrastructure.prisma-match-repository
- * PURPOSE: Prisma adapter for the `MatchRepository` port. Translates Prisma
- *          row shapes (snake_case columns via @map, nested venue via include)
- *          into domain types (branded ids, readonly arrays).
+ * PURPOSE: Prisma adapter for the `MatchRepository` port. Implements
+ *          `findDiscoverPage` with: half-open Prague-day window, Prague-TZ
+ *          hour buckets for time-of-day, total_spots bands for game size,
+ *          a derived `free_slots` expression for spots-left + implicit
+ *          hide-full, case-insensitive ILIKE venue search, Haversine
+ *          distance, and keyset cursor pagination on `(start_time, id)`.
+ *          Uses `$queryRaw` rather than Prisma's `where` builder because
+ *          three of those filters (Prague-TZ extract, Haversine, tuple
+ *          cursor) aren't expressible through Prisma's typed query API.
  * LAYER: infrastructure
  * DEPENDENCIES: @prisma/client, ../domain/*
  * CONSUMED BY: src/match_lifecycle/infrastructure/repositories.ts
  * INVARIANTS:
- *   - Returns matches sorted by (startTime ASC, id ASC). Index on `start_time`
- *     supports the primary sort; id breaks ties deterministically.
- *   - Excludes cancelled matches and matches whose startTime < `now` from
- *     listUpcoming(). Public Discover never shows these.
- *   - Always joins venue — Discover cards require venue name/address/coords.
- *   - Maps `surface` text to the domain `Surface` union without runtime
- *     validation; values in the DB are constrained at write time (Layer 3).
- * RELATED DOCS: docs/ARCHITECTURE.md §8 (Persistence).
+ *   - Sort: `(start_time ASC, id ASC)`. The matches.id is a UUID so id-ordering
+ *     is byte-lex; that's stable across requests, which is all the cursor
+ *     contract needs (no requirement on insertion order).
+ *   - Returns at most `limit` rows; one extra is fetched internally to
+ *     compute `nextCursor` without a second query.
+ *   - Excludes cancelled and past matches.
+ *   - `slots_left` derivation uses `acceptedSlots = 0` until Layer 4 adds
+ *     a JOIN against `join_requests` — keep the formula in sync with
+ *     `computeSlots()` then.
+ *   - ILIKE search escapes `%` and `_` to prevent inadvertent wildcard
+ *     expansion from user input.
+ * RELATED DOCS: docs/ARCHITECTURE.md §8, docs/spec/pitchup-spec-discovery.md.
  */
-import type {
-  PrismaClient,
-  Match as PrismaMatch,
-  Venue as PrismaVenue,
-} from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { asUserId } from "@/src/auth/domain/user";
-import { asMatchId, type MatchWithVenue } from "../domain/match";
+import { asMatchId, type MatchId, type MatchWithVenue } from "../domain/match";
 import type {
-  ListUpcomingOptions,
+  CreateMatchPersistenceInput,
+  DiscoverTimeOfDay,
+  FindDiscoverPageOptions,
+  FindDiscoverPageResult,
   MatchRepository,
 } from "../domain/match-repository";
 import { asVenueId, type Surface, type Venue } from "../domain/venue";
 
-type PrismaMatchWithVenue = PrismaMatch & { venue: PrismaVenue };
+interface RawRow {
+  id: string;
+  captain_id: string;
+  venue_id: string;
+  start_time: Date;
+  duration: number;
+  total_spots: number;
+  price: number;
+  surface: string;
+  studs_allowed: boolean;
+  field_booked: boolean;
+  description: string | null;
+  description_hidden: boolean;
+  captain_crew: string[];
+  cancelled_at: Date | null;
+  cancel_reason: string | null;
+  cancel_reason_hidden: boolean;
+  cover_id: string;
+  created_at: Date;
+  updated_at: Date;
+  v_id: string;
+  v_name: string;
+  v_address: string;
+  v_lat: number;
+  v_lng: number;
+  v_google_maps_url: string | null;
+  v_surface: string[];
+  v_cover_id: string;
+  v_active: boolean;
+}
+
+const TIME_BUCKETS: Record<DiscoverTimeOfDay, [number, number]> = {
+  morning: [6, 11],
+  afternoon: [12, 17],
+  evening: [18, 22],
+};
 
 export class PrismaMatchRepository implements MatchRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async listUpcoming(
-    options: ListUpcomingOptions,
-  ): Promise<readonly MatchWithVenue[]> {
-    const rows = await this.prisma.match.findMany({
-      where: {
-        cancelledAt: null,
-        startTime: { gte: options.now },
+  async findDiscoverPage(
+    options: FindDiscoverPageOptions,
+  ): Promise<FindDiscoverPageResult> {
+    const startTimeMin = new Date(
+      Math.max(options.now.getTime(), options.dayUtcStart.getTime()),
+    );
+
+    const conditions: Prisma.Sql[] = [
+      Prisma.sql`m.cancelled_at IS NULL`,
+      Prisma.sql`m.start_time >= ${startTimeMin}`,
+      Prisma.sql`m.start_time < ${options.dayUtcEnd}`,
+    ];
+
+    if (options.cursor) {
+      conditions.push(
+        Prisma.sql`(m.start_time, m.id) > (${options.cursor.startTime}, ${options.cursor.id}::uuid)`,
+      );
+    }
+
+    if (options.timeOfDay.length > 0) {
+      const bucketSql = options.timeOfDay.map((tod) => {
+        const [from, to] = TIME_BUCKETS[tod];
+        return Prisma.sql`EXTRACT(HOUR FROM (m.start_time AT TIME ZONE 'Europe/Prague')) BETWEEN ${from} AND ${to}`;
+      });
+      conditions.push(
+        Prisma.sql`(${Prisma.join(bucketSql, ` OR `)})`,
+      );
+    }
+
+    if (options.gameSize.length > 0) {
+      // Chip N a side ⇒ total_spots ∈ {2N, 2N+1}. Flatten and use IN.
+      const spotsValues = options.gameSize.flatMap((n) => [2 * n, 2 * n + 1]);
+      conditions.push(
+        Prisma.sql`m.total_spots IN (${Prisma.join(spotsValues)})`,
+      );
+    }
+
+    if (options.spotsLeft) {
+      // free_slots formula must mirror computeSlots() with acceptedSlots=0.
+      // COALESCE handles the Postgres quirk that array_length(empty,1) IS NULL.
+      const freeSlots = Prisma.sql`(m.total_spots - 1 - COALESCE(array_length(m.captain_crew, 1), 0))`;
+      switch (options.spotsLeft) {
+        case "1":
+          conditions.push(Prisma.sql`${freeSlots} = 1`);
+          break;
+        case "2-3":
+          conditions.push(Prisma.sql`${freeSlots} BETWEEN 2 AND 3`);
+          break;
+        case "4+":
+          conditions.push(Prisma.sql`${freeSlots} >= 4`);
+          break;
+      }
+    }
+
+    if (options.freeOnly) {
+      conditions.push(Prisma.sql`m.price = 0`);
+    }
+
+    if (options.fieldBookedOnly) {
+      conditions.push(Prisma.sql`m.field_booked = TRUE`);
+    }
+
+    if (options.venueSearch.trim().length > 0) {
+      const escaped = escapeIlike(options.venueSearch.trim());
+      conditions.push(Prisma.sql`v.name ILIKE ${`%${escaped}%`}`);
+    }
+
+    if (options.distanceKm !== null && options.location) {
+      const { lat, lng } = options.location;
+      conditions.push(Prisma.sql`
+        (2 * 6371 * asin(sqrt(
+          power(sin(radians((v.lat - ${lat}) / 2)), 2) +
+          cos(radians(${lat})) * cos(radians(v.lat)) *
+          power(sin(radians((v.lng - ${lng}) / 2)), 2)
+        ))) <= ${options.distanceKm}
+      `);
+    }
+
+    const whereSql = Prisma.join(conditions, ` AND `);
+    const fetchLimit = options.limit + 1;
+
+    const rows = await this.prisma.$queryRaw<RawRow[]>(Prisma.sql`
+      SELECT
+        m.id, m.captain_id, m.venue_id, m.start_time, m.duration,
+        m.total_spots, m.price, m.surface, m.studs_allowed, m.field_booked,
+        m.description, m.description_hidden, m.captain_crew, m.cancelled_at,
+        m.cancel_reason, m.cancel_reason_hidden, m.cover_id, m.created_at,
+        m.updated_at,
+        v.id AS v_id, v.name AS v_name, v.address AS v_address,
+        v.lat AS v_lat, v.lng AS v_lng,
+        v.google_maps_url AS v_google_maps_url, v.surface AS v_surface,
+        v.cover_id AS v_cover_id, v.active AS v_active
+      FROM matches m
+      JOIN venues v ON v.id = m.venue_id
+      WHERE ${whereSql}
+      ORDER BY m.start_time ASC, m.id ASC
+      LIMIT ${fetchLimit}
+    `);
+
+    let pageRows = rows;
+    let nextCursor: FindDiscoverPageResult["nextCursor"] = null;
+    if (rows.length > options.limit) {
+      pageRows = rows.slice(0, options.limit);
+      const last = pageRows[pageRows.length - 1]!;
+      nextCursor = { startTime: last.start_time, id: last.id };
+    }
+
+    return {
+      rows: pageRows.map(mapToDomain),
+      nextCursor,
+    };
+  }
+
+  async create(input: CreateMatchPersistenceInput): Promise<MatchId> {
+    const row = await this.prisma.match.create({
+      data: {
+        captainId: input.captainId,
+        venueId: input.venueId,
+        startTime: input.startTime,
+        duration: input.duration,
+        totalSpots: input.totalSpots,
+        price: input.price,
+        surface: input.surface,
+        studsAllowed: input.studsAllowed,
+        fieldBooked: input.fieldBooked,
+        description: input.description,
+        captainCrew: [...input.captainCrew],
+        coverId: input.coverId,
       },
-      include: { venue: true },
-      orderBy: [{ startTime: "asc" }, { id: "asc" }],
-      take: options.limit,
+      select: { id: true },
     });
-    return rows.map(mapToDomain);
+    return asMatchId(row.id);
   }
 }
 
-function mapToDomain(row: PrismaMatchWithVenue): MatchWithVenue {
+function escapeIlike(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
+function mapToDomain(row: RawRow): MatchWithVenue {
   return {
     id: asMatchId(row.id),
-    captainId: asUserId(row.captainId),
-    venueId: asVenueId(row.venueId),
-    startTime: row.startTime,
+    captainId: asUserId(row.captain_id),
+    venueId: asVenueId(row.venue_id),
+    startTime: row.start_time,
     duration: row.duration,
-    totalSpots: row.totalSpots,
+    totalSpots: row.total_spots,
     price: row.price,
     surface: row.surface as Surface,
-    studsAllowed: row.studsAllowed,
-    fieldBooked: row.fieldBooked,
+    studsAllowed: row.studs_allowed,
+    fieldBooked: row.field_booked,
     description: row.description,
-    descriptionHidden: row.descriptionHidden,
-    captainCrew: row.captainCrew,
-    cancelledAt: row.cancelledAt,
-    cancelReason: row.cancelReason,
-    cancelReasonHidden: row.cancelReasonHidden,
-    coverId: row.coverId,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-    venue: mapVenue(row.venue),
+    descriptionHidden: row.description_hidden,
+    captainCrew: row.captain_crew,
+    cancelledAt: row.cancelled_at,
+    cancelReason: row.cancel_reason,
+    cancelReasonHidden: row.cancel_reason_hidden,
+    coverId: row.cover_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    venue: mapVenue(row),
   };
 }
 
-function mapVenue(row: PrismaVenue): Venue {
+function mapVenue(row: RawRow): Venue {
   return {
-    id: asVenueId(row.id),
-    name: row.name,
-    address: row.address,
-    lat: row.lat,
-    lng: row.lng,
-    googleMapsUrl: row.googleMapsUrl,
-    surface: row.surface as readonly Surface[],
-    coverId: row.coverId,
-    active: row.active,
+    id: asVenueId(row.v_id),
+    name: row.v_name,
+    address: row.v_address,
+    lat: row.v_lat,
+    lng: row.v_lng,
+    googleMapsUrl: row.v_google_maps_url,
+    surface: row.v_surface as readonly Surface[],
+    coverId: row.v_cover_id,
+    active: row.v_active,
   };
 }

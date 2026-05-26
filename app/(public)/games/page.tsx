@@ -1,67 +1,103 @@
 /**
  * MODULE: app.(public).games.page
- * PURPOSE: Public Discover feed. Lists upcoming matches sorted by start time,
- *          rendered as MatchCards. Layer 2 scope is read-only and unfiltered
- *          — day picker, distance / time / size / spots filters, search,
- *          and cursor pagination land in Layer 2.5.
+ * PURPOSE: Public Discover feed. Reads URL filters server-side via the
+ *          canonical parser, fetches the first page from the
+ *          `ListDiscoverMatchesService`, then hands the rendered state to a
+ *          client shell that owns ephemeral search + cursor pagination.
+ *          This is the first URL-driven Server Component fetch in the
+ *          codebase (Layer 2.5).
  * LAYER: interfaces (Server Component)
- * DEPENDENCIES: src/match_lifecycle/composition.ts, src/ui/components/*
+ * DEPENDENCIES: src/match_lifecycle/composition,
+ *               src/match_lifecycle/application/discover-filters,
+ *               src/shared/time/prague, ./discover-shell
  * INVARIANTS:
- *   - Accessible to guests (no auth gate). Middleware whitelists `/games`.
- *   - Cancelled matches and past matches are excluded by the repository.
+ *   - Accessible to guests; middleware whitelists `/games`.
+ *   - Distance filter is silently dropped server-side (no localStorage). The
+ *     client shell + DistanceBanner surface the situation.
+ *   - The `key` on `DiscoverShell` includes all sticky URL filters so the
+ *     shell remounts (and re-seeds its internal state) on any URL change —
+ *     prevents stale rows / cursor when the user changes day or applies a
+ *     new sheet filter.
  * RELATED DOCS: docs/spec/pitchup-spec-discovery.md → "/games",
- *               docs/ROADMAP.md → Layer 2.
+ *               docs/ROADMAP.md → Layer 2.5.
  */
+import {
+  discoverHorizonDates,
+  encodeCursor,
+  parseDiscoverFilters,
+} from "@/src/match_lifecycle/application/discover-filters";
 import { listDiscoverMatchesService } from "@/src/match_lifecycle/composition";
-import { MatchCard } from "@/src/ui/components/match-card";
+import { todayPrague } from "@/src/shared/time/prague";
+
+import { DiscoverShell } from "./discover-shell";
+import type { DiscoverInitialState, DiscoverRow } from "./discover-types";
 
 export const dynamic = "force-dynamic";
 
-export default async function GamesPage() {
-  const matches = await listDiscoverMatchesService.execute({ limit: 50 });
+interface PageProps {
+  readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
 
-  return (
-    <main className="px-4 py-6">
-      <header className="mb-4">
-        <h1 className="text-[20px] font-semibold text-text-primary">
-          Discover
-        </h1>
-        <p className="mt-1 text-[13px] text-text-secondary">
-          {matches.length === 0
-            ? "No upcoming matches right now."
-            : `${matches.length} upcoming ${matches.length === 1 ? "match" : "matches"}`}
-        </p>
-      </header>
+const PAGE_SIZE = 50;
 
-      {matches.length === 0 ? (
-        <div className="rounded-card border border-border bg-bg-card p-6 text-center text-[13px] text-text-secondary">
-          Check back soon, or be the first to create one.
-        </div>
-      ) : (
-        <ul className="space-y-3">
-          {matches.map((match) => (
-            <li key={match.id}>
-              <MatchCard
-                href={`/matches/${match.id}`}
-                venueName={match.venue.name}
-                venueAddress={match.venue.address}
-                startTime={match.startTime}
-                duration={match.duration}
-                surface={match.surface}
-                studsAllowed={match.studsAllowed}
-                fieldBooked={match.fieldBooked}
-                price={match.price}
-                status={match.status}
-                slots={{
-                  filled: match.slots.filled,
-                  capacity: match.slots.capacity,
-                  free: match.slots.free,
-                }}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
-    </main>
-  );
+export default async function GamesPage(props: PageProps) {
+  const sp = await props.searchParams;
+  const now = new Date();
+  const filters = parseDiscoverFilters(sp, { now });
+  const today = todayPrague(now);
+  const horizonDates = discoverHorizonDates(today);
+
+  const page = await listDiscoverMatchesService.execute({
+    filters,
+    limit: PAGE_SIZE,
+    now,
+    // SSR has no access to localStorage — distance filter is dropped here
+    // and re-applied via the client shell after hydration if a location is
+    // saved.
+    location: null,
+  });
+
+  const initial: DiscoverInitialState = {
+    date: filters.date,
+    today,
+    horizonDates,
+    distanceKm: filters.distanceKm,
+    timeOfDay: filters.timeOfDay,
+    gameSize: [...filters.gameSize] as DiscoverInitialState["gameSize"],
+    spotsLeft: filters.spotsLeft,
+    freeOnly: filters.freeOnly,
+    fieldBookedOnly: filters.fieldBookedOnly,
+    page: {
+      rows: page.rows.map(toRow),
+      nextCursor: page.nextCursor ? encodeCursor(page.nextCursor) : null,
+    },
+  };
+
+  const remountKey = [
+    filters.date,
+    filters.distanceKm,
+    filters.timeOfDay.join(","),
+    filters.gameSize.join(","),
+    filters.spotsLeft,
+    filters.freeOnly,
+    filters.fieldBookedOnly,
+  ].join("|");
+
+  return <DiscoverShell key={remountKey} initial={initial} />;
+}
+
+function toRow(view: Awaited<ReturnType<typeof listDiscoverMatchesService.execute>>["rows"][number]): DiscoverRow {
+  return {
+    id: view.id,
+    startTime: view.startTime.toISOString(),
+    duration: view.duration,
+    surface: view.surface,
+    studsAllowed: view.studsAllowed,
+    fieldBooked: view.fieldBooked,
+    price: view.price,
+    coverId: view.coverId,
+    venue: view.venue,
+    slots: view.slots,
+    status: view.status,
+  };
 }

@@ -11,6 +11,9 @@
  */
 import { prisma } from "@/src/shared/db/prisma";
 import type { MatchRepository } from "../domain/match-repository";
+import type { VenueRepository } from "../domain/venue-repository";
 import { PrismaMatchRepository } from "./prisma-match-repository";
+import { PrismaVenueRepository } from "./prisma-venue-repository";
 
 export const matchRepository: MatchRepository = new PrismaMatchRepository(prisma);
+export const venueRepository: VenueRepository = new PrismaVenueRepository(prisma);

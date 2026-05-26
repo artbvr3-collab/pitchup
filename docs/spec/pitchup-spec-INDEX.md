@@ -29,6 +29,9 @@
 → [global.md](./pitchup-spec-global.md): Notifications (email, in-app inbox, browser) · Polling sync (`GET /api/updates/state`)
 → [match.md](./pitchup-spec-match.md): Tab Chat (per-match poll `GET /api/matches/:id/state`)
 
+### Realtime chat transport (Ably v1 → Socket.io v2)
+→ [match.md](./pitchup-spec-match.md): "Realtime chat transport" (channel naming, subscribe-only key, write through API, gap-fill via polling, v2 migration path)
+
 ### Match discovery
 → [discovery.md](./pitchup-spec-discovery.md): `/games` (list + chips) · `/map` (map + pins) · geolocation
 

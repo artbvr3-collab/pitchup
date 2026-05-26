@@ -19,6 +19,30 @@
 - **Advisory lock helper:** `src/shared/db/with-match-lock.ts`
 - **Spec:** [docs/spec/pitchup-spec-match.md](./docs/spec/pitchup-spec-match.md) — full lifecycle, per-endpoint checklist, race scenarios
 
+### Create match (`/matches/new`)
+- **Wizard (3-step client island):** `app/(private)/matches/new/wizard.tsx`
+- **Server Component shell:** `app/(private)/matches/new/page.tsx`
+- **Use case:** `src/match_lifecycle/application/create-match-service.ts` (no advisory lock — the match id doesn't exist yet)
+- **Zod payload schema:** `src/match_lifecycle/application/dto/create-match-input.ts`
+- **Venue listing port + adapter:** `src/match_lifecycle/domain/venue-repository.ts`, `src/match_lifecycle/infrastructure/prisma-venue-repository.ts`
+- **Repo `create()`:** `src/match_lifecycle/infrastructure/prisma-match-repository.ts`
+- **Domain errors:** `src/match_lifecycle/domain/errors.ts`
+- **Route handlers:** `app/api/matches/route.ts` (POST), `app/api/venues/route.ts` (GET)
+- **Spec:** [docs/spec/pitchup-spec-match.md](./docs/spec/pitchup-spec-match.md) → "/matches/new", "Per-endpoint checklist" → POST /matches
+
+### Match discovery (`/games`)
+- **URL-filter parser:** `src/match_lifecycle/application/discover-filters.ts` (Zod + cursor codec)
+- **Paged service:** `src/match_lifecycle/application/list-discover-matches.ts`
+- **Repository port:** `src/match_lifecycle/domain/match-repository.ts` (`findDiscoverPage`)
+- **Prisma adapter (raw SQL: Prague-TZ extract, Haversine, keyset cursor):** `src/match_lifecycle/infrastructure/prisma-match-repository.ts`
+- **Route handler (Show more / live search):** `app/api/matches/discover/route.ts`
+- **Page (Server Component) + client islands:** `app/(public)/games/`
+- **Spec:** [docs/spec/pitchup-spec-discovery.md](./docs/spec/pitchup-spec-discovery.md) → "/games"
+
+### Time / TZ
+- **Prague-day primitives:** `src/shared/time/prague.ts` (`pragueDay`, `pragueRange`, `todayPrague`, `addPragueDays`)
+- **Spec:** [docs/spec/pitchup-spec-global.md](./docs/spec/pitchup-spec-global.md) → "Timezones & date ranges"
+
 ### Notifications (in-app inbox / browser / email)
 - **Code:** `src/notifications/`
 - **Spec:** [docs/spec/pitchup-spec-global.md](./docs/spec/pitchup-spec-global.md) → "Notifications", "Polling sync", "action → notification.type mapping"
@@ -32,6 +56,10 @@
 - **Global poll handler:** `app/api/updates/state/route.ts`
 - **Per-match poll handler:** `app/api/matches/[id]/state/route.ts`
 - **Spec:** [docs/spec/pitchup-spec-global.md](./docs/spec/pitchup-spec-global.md) → "Polling sync", [docs/spec/pitchup-spec-match.md](./docs/spec/pitchup-spec-match.md) → "Polling for match state"
+
+### Realtime chat (Ably pub/sub in v1, self-hosted Socket.io in v2)
+- **Spec:** [docs/spec/pitchup-spec-match.md](./docs/spec/pitchup-spec-match.md) → "Realtime chat transport"
+- **Status:** not yet implemented — design only. Polling already covers message delivery as fallback.
 
 ### UI kit (components, tokens, theme)
 - **Components:** `src/ui/components/` — `TopBar`, `BottomNav`, `MatchCard`, `Button`, `Badge`, `Skeleton`, `BottomSheet`, ...

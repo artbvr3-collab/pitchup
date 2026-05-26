@@ -12,9 +12,18 @@
  *     (would invert the dependency direction).
  * RELATED DOCS: docs/ARCHITECTURE.md §3 (dependency direction).
  */
+import { CreateMatchService } from "./application/create-match-service";
 import { ListDiscoverMatchesService } from "./application/list-discover-matches";
-import { matchRepository } from "./infrastructure/repositories";
+import { ListVenuesService } from "./application/list-venues-service";
+import { matchRepository, venueRepository } from "./infrastructure/repositories";
 
 export const listDiscoverMatchesService = new ListDiscoverMatchesService(
   matchRepository,
 );
+
+export const createMatchService = new CreateMatchService(
+  matchRepository,
+  venueRepository,
+);
+
+export const listVenuesService = new ListVenuesService(venueRepository);

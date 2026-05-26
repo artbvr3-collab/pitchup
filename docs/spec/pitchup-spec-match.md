@@ -224,6 +224,43 @@ match.status?
 - **Cancelled** — chat is **read-only for everyone, including the captain**. The composer is hidden, replaced by the line "Chat closed · match cancelled" below the feed. Rationale: the match won't happen, coordinating in this chat serves no purpose, the composer only provokes arguments. Former accepted players and the captain can see the history but cannot write. Backend on `POST /api/matches/:id/messages` with `status === 'cancelled'` returns `409 chat_frozen` (backstop against direct requests; the UI already hides the composer).
 - **Captain moderation works on all statuses**, including Cancelled. Captain `[Delete]` on any message in their own chat remains available so an offensive message can be removed even in a past match. Delete is not "writing to chat" — it's moderation; the read-only freeze doesn't cover it. On Cancelled the captain sheet is disabled (see "Manage match visibility by status" below) — but the inline `[Delete]` on a message in Tab Chat works independently of the sheet.
 
+**Realtime chat transport (v1: Ably pub/sub · v2: self-hosted Socket.io on VPS):**
+
+The polling layer described above is the **source of truth and the fallback**. The realtime layer is an **enhancement** that delivers new and deleted messages with <1s latency without changing the data model, write path, or auth. If the realtime layer is unavailable (provider outage, client offline, blocked network), chat still works — polling fills the gap.
+
+- **Transport choice for v1 — Ably as pub/sub only**, not Ably Chat SDK. We use Ably purely as a message bus; history, persistence, presence, read receipts, moderation all live in our Postgres. This keeps the chat domain provider-agnostic and makes the v2 migration to self-hosted Socket.io a transport swap, not a rewrite.
+- **Channel naming:** `match:{matchId}:chat`. One channel per match. No global or per-user channels in v1.
+- **Write path is unchanged.** Clients **never publish to Ably directly.** All sends go through `POST /api/matches/:id/messages` (existing auth, role check, status check, rate limit, persist to `ChatMessage`). After the DB transaction commits, the route fans out via Ably using the server-side key. If the Ably publish fails, the request still returns `200` with the persisted message — polling will deliver it within 15s. Publish failures are logged, not surfaced to the user.
+- **Event shape on the channel:**
+  - `message_created` — payload `{ id, author_id, text, created_at }` (same shape as `messages[]` in `GET /api/matches/:id/state`).
+  - `message_deleted` — payload `{ id, deleted_at }`. Published from `DELETE /api/matches/:id/messages/:msgId` after commit. Frontend replaces the bubble with `"[message deleted]"` immediately.
+- **Lineup and match status are NOT fanned out via Ably in v1.** They continue to ride the per-match poll (`GET /api/matches/:id/state`). Rationale: polling has to run anyway (lineup/status), and roster changes are not latency-sensitive at MVP scale. Moving them later is a pure addition (new event types on the same channel), not a refactor.
+- **Auth model — subscribe-only key in v1.** Chat is public-read (guests can see history via the static snapshot served by the page; signed-in roles are gated by the existing write rules). We use **two Ably keys**:
+  - `ABLY_API_KEY` (server-side, full publish capability) — env-only, used by API routes for fan-out.
+  - `NEXT_PUBLIC_ABLY_SUBSCRIBE_KEY` (subscribe-only, capability `{"*": ["subscribe", "history"]}`) — shipped in the client bundle. Cannot be abused for spam because publish capability is absent.
+  - **No Ably token auth in v1.** When private matches, DMs, or per-user rate-limited subscribe lands — add `GET /api/ably/token` returning a short-lived JWT with per-channel capabilities, and switch the client from `key` to `authUrl`. This is a ~50-line change, not a rewrite. Do not pre-build it.
+- **`clientId` convention:** signed-in users connect with `clientId = session.user.id`; guests connect with `clientId = "anon-${uuid}"` (uuid generated client-side, persisted in `sessionStorage` so it survives navigation within the tab). This makes presence and any future "X is typing" payloads usable without changing the connection layer when token auth is added.
+- **Who subscribes:**
+  - **Captain + accepted + watching + guest** — subscribe to `match:{matchId}:chat` on Tab Chat mount; unsubscribe on unmount.
+  - **Pending** — do **not** subscribe (consistent with "pending do not poll"; chat is hidden until approval).
+- **Gap-fill on reconnect.** Ably's free tier retains only ~2 minutes of channel history; we do not rely on it. On `connected` after a `disconnected` transition (network blip, tab resume, etc.), the frontend triggers an immediate `GET /api/matches/:id/state?since={last_known_message_created_at}` to backfill any messages dropped during the gap. This is the same code path that polling uses — no separate "catch-up" branch.
+- **Deduplication.** The frontend keys messages by `id` in the feed state. A message arriving first via Ably and then again via the next poll (or vice versa) is rendered once. The same applies to `message_deleted`: idempotent on `deleted_at` set.
+- **Poll cadence is unchanged.** We deliberately do **not** reduce the polling interval when Ably is connected. Polling still carries lineup + status + `deleted: true`, and the 15s/60s cadence is already cheap. Adding adaptive cadence is future work, not v1.
+- **Read receipts (`ChatRead` upsert)** stay on the existing REST trigger when Tab Chat opens. They are not fanned out via Ably — unread dots refresh on the next `GET /api/updates/state` poll, as specified in "Unread chat dots — data model" in [personal.md](./pitchup-spec-personal.md).
+- **Free-tier headroom (Ably, at time of writing):** 6M messages/month, 200 peak concurrent connections, 200 peak channels. This covers MVP comfortably. The first ceiling we hit is concurrent connections (≈150 simultaneous online users); when that becomes a real constraint, that is also the natural trigger to migrate to v2.
+- **v2 migration path (self-hosted Socket.io on VPS).** When we move to v2, the changes are:
+  - Replace `ABLY_API_KEY` fan-out in the two write routes with `io.to(`match:${matchId}:chat`).emit(...)`.
+  - Replace the client subscribe hook's transport (Ably → Socket.io) — event shapes and channel naming stay identical.
+  - Add a Node process running `socket.io` on the VPS (separate port, behind the same reverse proxy as Next), or a custom Next server if we choose to colocate.
+  - Add token auth at handshake (validate the NextAuth session cookie or a short-lived JWT) — at this point the v1 subscribe-only-key shortcut is no longer applicable, since we own the auth layer.
+  - Polling layer and DB schema are untouched.
+
+**Required env additions (when implementing the Layer):**
+- `ABLY_API_KEY` — server-side only, full key.
+- `NEXT_PUBLIC_ABLY_SUBSCRIBE_KEY` — subscribe-only key, client-visible.
+
+Both must be validated in `src/shared/config/env.ts` and added to `.env.example` with obviously-fake placeholders (same convention as Google OAuth).
+
 **Captain sheet** (opened via `[Manage match]` in the CTA bar, or auto-opened via the URL parameter `?sheet=captain`):
 
 **Auto-open via `?sheet=captain`:** needed for the `/my-matches → [Manage →]` transition. On load, frontend: if `searchParams.get('sheet') === 'captain'` AND **the user is the captain of this match** AND **the match status is live** (Open / AlmostFull / Full) → the bottom sheet opens, the parameter is removed from the URL via `router.replace` (no parameter, so it doesn't stick in browser history and doesn't reopen on F5).
