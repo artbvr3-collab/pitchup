@@ -217,6 +217,14 @@ export class FakeJoinRequestRepository implements JoinRequestRepository {
     }
     return out;
   }
+
+  async listPendingForMatch(matchId: MatchId): Promise<readonly JoinRequest[]> {
+    const out: JoinRequest[] = [];
+    for (const row of this.rows.values()) {
+      if (row.matchId === matchId && row.status === "pending") out.push(row);
+    }
+    return out;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -242,5 +250,18 @@ export class FakeWatchRepository implements WatchRepository {
   ): Promise<void> {
     this.deleted.push({ matchId, userId });
     this.rows.delete(`${matchId}::${userId}`);
+  }
+
+  async countForMatch(matchId: MatchId): Promise<number> {
+    let n = 0;
+    for (const key of this.rows) if (key.startsWith(`${matchId}::`)) n++;
+    return n;
+  }
+
+  async existsForUserAndMatch(
+    matchId: MatchId,
+    userId: UserId,
+  ): Promise<boolean> {
+    return this.rows.has(`${matchId}::${userId}`);
   }
 }

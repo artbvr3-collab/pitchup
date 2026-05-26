@@ -1,8 +1,12 @@
 /**
  * MODULE: match_lifecycle.domain.join-request-repository
- * PURPOSE: Port for JoinRequest persistence. All methods accept a
- *          `TransactionClient` — Layer 4 only ever reads or writes JoinRequests
- *          from inside a `withMatchLock` critical section, never standalone.
+ * PURPOSE: Port for JoinRequest persistence. Write methods + the reads they
+ *          depend on accept a `TransactionClient` (Layer 4 — locked critical
+ *          sections in join / approve / reject). Read methods are also
+ *          callable WITHOUT a `tx` — Layer 5 chat role gating and the
+ *          polling state assembler need unlocked snapshots. Same one-method-
+ *          with-optional-tx convention as `MatchRepository.findById(id, tx?)`
+ *          — see AGENTS gotchas.
  * LAYER: domain
  * DEPENDENCIES: ./join-request, ./match, src/auth/domain/user, src/shared/db/types
  * CONSUMED BY: src/match_lifecycle/application/{join,approve,reject}-*-service,
@@ -59,12 +63,12 @@ export interface JoinRequestRepository {
   findByMatchAndUser(
     matchId: MatchId,
     userId: UserId,
-    tx: TransactionClient,
+    tx?: TransactionClient,
   ): Promise<JoinRequest | null>;
 
   findById(
     id: JoinRequestId,
-    tx: TransactionClient,
+    tx?: TransactionClient,
   ): Promise<JoinRequest | null>;
 
   /**
@@ -93,6 +97,16 @@ export interface JoinRequestRepository {
   /** Rows with `status = 'accepted'` for the given match. */
   listAcceptedForMatch(
     matchId: MatchId,
-    tx: TransactionClient,
+    tx?: TransactionClient,
+  ): Promise<readonly JoinRequest[]>;
+
+  /**
+   * Rows with `status = 'pending'` for the given match. Layer 5 reads only —
+   * surfaced to the captain via the polling payload and the captain sheet.
+   * Non-captains receive `pending: []` per spec match.md §216.
+   */
+  listPendingForMatch(
+    matchId: MatchId,
+    tx?: TransactionClient,
   ): Promise<readonly JoinRequest[]>;
 }

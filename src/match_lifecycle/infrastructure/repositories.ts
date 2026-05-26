@@ -23,5 +23,5 @@ import { PrismaWatchRepository } from "./prisma-watch-repository";
 export const matchRepository: MatchRepository = new PrismaMatchRepository(prisma);
 export const venueRepository: VenueRepository = new PrismaVenueRepository(prisma);
 export const joinRequestRepository: JoinRequestRepository =
-  new PrismaJoinRequestRepository();
-export const watchRepository: WatchRepository = new PrismaWatchRepository();
+  new PrismaJoinRequestRepository(prisma);
+export const watchRepository: WatchRepository = new PrismaWatchRepository(prisma);

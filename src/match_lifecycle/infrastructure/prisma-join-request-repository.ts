@@ -1,8 +1,13 @@
 /**
  * MODULE: match_lifecycle.infrastructure.prisma-join-request-repository
- * PURPOSE: Prisma adapter for `JoinRequestRepository`. All methods take the
- *          locked `tx` client — this adapter is never called outside an
- *          advisory-lock critical section in Layer 4.
+ * PURPOSE: Prisma adapter for `JoinRequestRepository`.
+ *          - Write methods + the reads they call (under lock) take a `tx`
+ *            client from `withMatchLock` (Layer 4 — join / approve / reject).
+ *          - Read methods are also callable without `tx`. The adapter falls
+ *            back to the module-singleton `prisma` injected via the
+ *            constructor. Layer 5 (chat role gating + polling lineup
+ *            snapshot) needs unlocked snapshots; mirroring the same
+ *            `tx ?? prisma` shape `PrismaMatchRepository.findById` uses.
  * LAYER: infrastructure
  * DEPENDENCIES: @prisma/client, ../domain/*
  * CONSUMED BY: src/match_lifecycle/infrastructure/repositories.ts
@@ -18,7 +23,7 @@
  *     match states" (UPSERT update rules)
  *   - ADR-0003
  */
-import type { JoinRequest as JoinRequestRow } from "@prisma/client";
+import type { JoinRequest as JoinRequestRow, PrismaClient } from "@prisma/client";
 
 import { asUserId, type UserId } from "@/src/auth/domain/user";
 import type { TransactionClient } from "@/src/shared/db/types";
@@ -38,12 +43,15 @@ import type {
 import { asMatchId, type MatchId } from "../domain/match";
 
 export class PrismaJoinRequestRepository implements JoinRequestRepository {
+  constructor(private readonly prisma: PrismaClient) {}
+
   async findByMatchAndUser(
     matchId: MatchId,
     userId: UserId,
-    tx: TransactionClient,
+    tx?: TransactionClient,
   ): Promise<JoinRequest | null> {
-    const row = await tx.joinRequest.findUnique({
+    const client = tx ?? this.prisma;
+    const row = await client.joinRequest.findUnique({
       where: {
         matchId_userId: { matchId: matchId, userId: userId },
       },
@@ -53,9 +61,10 @@ export class PrismaJoinRequestRepository implements JoinRequestRepository {
 
   async findById(
     id: JoinRequestId,
-    tx: TransactionClient,
+    tx?: TransactionClient,
   ): Promise<JoinRequest | null> {
-    const row = await tx.joinRequest.findUnique({ where: { id } });
+    const client = tx ?? this.prisma;
+    const row = await client.joinRequest.findUnique({ where: { id } });
     return row ? toDomain(row) : null;
   }
 
@@ -118,10 +127,24 @@ export class PrismaJoinRequestRepository implements JoinRequestRepository {
 
   async listAcceptedForMatch(
     matchId: MatchId,
-    tx: TransactionClient,
+    tx?: TransactionClient,
   ): Promise<readonly JoinRequest[]> {
-    const rows = await tx.joinRequest.findMany({
+    const client = tx ?? this.prisma;
+    const rows = await client.joinRequest.findMany({
       where: { matchId, status: "accepted" },
+      orderBy: { updatedAt: "asc" },
+    });
+    return rows.map(toDomain);
+  }
+
+  async listPendingForMatch(
+    matchId: MatchId,
+    tx?: TransactionClient,
+  ): Promise<readonly JoinRequest[]> {
+    const client = tx ?? this.prisma;
+    const rows = await client.joinRequest.findMany({
+      where: { matchId, status: "pending" },
+      orderBy: { createdAt: "asc" },
     });
     return rows.map(toDomain);
   }

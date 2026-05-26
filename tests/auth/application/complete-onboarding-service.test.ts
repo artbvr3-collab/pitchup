@@ -56,6 +56,11 @@ class FakeUserRepository implements UserRepository {
     this.bySub.set(input.googleSub, created);
     return created;
   }
+
+  async findByIds(): Promise<readonly User[]> {
+    // Unused in the onboarding service path. Tests that need it can override.
+    return [];
+  }
 }
 
 function makeUser(overrides: Partial<User> = {}): User {

@@ -1,13 +1,15 @@
 /**
  * MODULE: match_lifecycle.domain.watch-repository
- * PURPOSE: Port for "Notify me when a spot opens" subscriptions. Layer 4
- *          uses ONE method — idempotent delete inside the Join/Approve
- *          transactions, per spec: a successful Join wipes the user's Watch
- *          for that match in the same tx; Approve does the same as a safety
- *          (the user may have raced a Watch in just before approve).
- *          INSERT + isFull check live in the `POST /watch` endpoint, which
- *          lands in a later layer. The port grows then; do not pre-add
- *          methods we don't yet call.
+ * PURPOSE: Port for "Notify me when a spot opens" subscriptions.
+ *          - Layer 4: idempotent delete inside the Join/Approve transactions
+ *            (a successful Join wipes the user's Watch for that match in the
+ *            same tx; Approve does the same as a safety against a Watch race).
+ *          - Layer 5: read-only `countForMatch` for the polling lineup
+ *            snapshot — surfaces `watching_count` to all viewers (spec
+ *            match.md "Tab Lineup → watching counter").
+ *          INSERT + isFull check live in `POST /watch`, which lands in a
+ *          later layer. The port grows when those methods are first called;
+ *          do not pre-add methods we don't yet use.
  * LAYER: domain
  * DEPENDENCIES: ./match, src/auth/domain/user, src/shared/db/types
  * CONSUMED BY: src/match_lifecycle/application/{join,approve}-*-service,
@@ -34,4 +36,20 @@ export interface WatchRepository {
     userId: UserId,
     tx: TransactionClient,
   ): Promise<void>;
+
+  /**
+   * Count of Watch rows for the given match. Unlocked read — used by the
+   * polling state assembler to surface `watching_count`. Captain-facing UI
+   * shows the number on the lineup tab; non-captain UI hides it. The poll
+   * payload includes the count for everyone (cheap to send).
+   */
+  countForMatch(matchId: MatchId): Promise<number>;
+
+  /**
+   * True if the (match, user) pair has a Watch row. Used by the RSC
+   * page-load path to derive the viewer's role (`watching` vs `none`).
+   * Unlocked — viewer-role drives UI only; the Join transaction takes
+   * the canonical lock and re-checks.
+   */
+  existsForUserAndMatch(matchId: MatchId, userId: UserId): Promise<boolean>;
 }

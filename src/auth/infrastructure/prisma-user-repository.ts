@@ -13,7 +13,13 @@
  */
 import type { PrismaClient, User as PrismaUser } from "@prisma/client";
 import { Prisma } from "@prisma/client";
-import { asGoogleSub, asUserId, type GoogleSub, type User } from "../domain/user";
+import {
+  asGoogleSub,
+  asUserId,
+  type GoogleSub,
+  type User,
+  type UserId,
+} from "../domain/user";
 import type { NewUserInput, UserRepository } from "../domain/user-repository";
 
 export class PrismaUserRepository implements UserRepository {
@@ -47,6 +53,16 @@ export class PrismaUserRepository implements UserRepository {
       }
       throw err;
     }
+  }
+
+  async findByIds(ids: readonly UserId[]): Promise<readonly User[]> {
+    if (ids.length === 0) return [];
+    // UserId is a string-brand; Prisma's `in` accepts string[]. Cast via
+    // `unknown` to drop the brand on the wire — same shape, different type.
+    const rows = await this.prisma.user.findMany({
+      where: { id: { in: ids as unknown as string[] } },
+    });
+    return rows.map(mapToDomain);
   }
 }
 
