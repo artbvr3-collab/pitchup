@@ -6,12 +6,19 @@
  *          The fake `TransactionClient` is a sentinel — the fakes ignore it
  *          because the lock is mocked away (vi.mock on withMatchLock in each
  *          test file).
- *          Layer 5 addition: FakeChatMessageRepository — used by
- *          PostChatMessageService and DeleteChatMessageService tests.
+ *          Layer 5 additions: FakeChatMessageRepository, FakeUserRepository,
+ *          makeUser factory — used by MatchStateService, PostChatMessageService,
+ *          and DeleteChatMessageService tests.
  * LAYER: tests / helpers
  * RELATED DOCS: docs/ARCHITECTURE.md §12 (testing strategy), docs/adr/0003-…
  */
-import { asUserId, type UserId } from "@/src/auth/domain/user";
+import {
+  asGoogleSub,
+  asUserId,
+  type User,
+  type UserId,
+} from "@/src/auth/domain/user";
+import type { UserRepository } from "@/src/auth/domain/user-repository";
 import {
   asChatMessageId,
   type ChatMessage,
@@ -345,5 +352,56 @@ export class FakeChatMessageRepository implements ChatMessageRepository {
     // Sort by createdAt ASC, then cap at limit
     results.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
     return results.slice(0, options.limit);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// UserRepository (Layer 5)
+// ---------------------------------------------------------------------------
+
+export function makeUser(args: {
+  id: UserId;
+  name: string;
+  banned?: boolean;
+  deletedAt?: Date | null;
+}): User {
+  return {
+    id: args.id,
+    googleSub: asGoogleSub(`google-sub-${args.id}`),
+    email: `${args.id}@example.com`,
+    name: args.name,
+    avatarUrl: "",
+    contactInfo: null,
+    emailNotifications: false,
+    isAdmin: false,
+    banned: args.banned ?? false,
+    deletedAt: args.deletedAt ?? null,
+    createdAt: new Date("2026-05-26T00:00:00Z"),
+  };
+}
+
+export class FakeUserRepository implements UserRepository {
+  private users = new Map<UserId, User>();
+
+  /** Test helper — seed a user into the store. */
+  seed(user: User): void {
+    this.users.set(user.id, user);
+  }
+
+  async findByGoogleSub(): Promise<User | null> {
+    throw new Error("findByGoogleSub not used in Layer 5 tests");
+  }
+
+  async create(): Promise<User> {
+    throw new Error("create not used in Layer 5 tests");
+  }
+
+  async findByIds(ids: readonly UserId[]): Promise<readonly User[]> {
+    const result: User[] = [];
+    for (const id of ids) {
+      const u = this.users.get(id);
+      if (u) result.push(u);
+    }
+    return result;
   }
 }
