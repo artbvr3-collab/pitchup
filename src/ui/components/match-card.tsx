@@ -113,11 +113,10 @@ export function MatchCard(props: MatchCardProps) {
           </div>
           <span
             className={cn(
-              "inline-flex shrink-0 items-center gap-1.5 rounded-chip px-2.5 py-1 text-[11px] font-semibold text-text-inverted",
+              "inline-flex shrink-0 items-center justify-center rounded-chip px-3 py-1 text-[11px] font-semibold leading-none text-text-inverted",
               statusColor,
             )}
           >
-            <span className="size-1.5 rounded-full bg-text-inverted/80" />
             {statusLabel}
           </span>
         </div>
