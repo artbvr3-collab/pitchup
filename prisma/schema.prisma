@@ -2,8 +2,8 @@
 // Source of truth for the spec: docs/spec/pitchup-app-map.md → "Main entities"
 //                              docs/spec/pitchup-spec-global.md → "Authentication", "Slot math", "Field surface", "Cover venue"
 //                              docs/spec/pitchup-spec-match.md → "Match states"
-// Layers: 1 (User), 2 (Match + Venue read-only), 4 (JoinRequest + Watch).
-// Subsequent layers grow this file (ChatMessage, ChatRead, Notification, Report,
+// Layers: 1 (User), 2 (Match + Venue read-only), 4 (JoinRequest + Watch), 5 (ChatMessage).
+// Subsequent layers grow this file (ChatRead, Notification, Report,
 // AdminAction, ReminderSent, Like — see app-map ERD).
 
 generator client {
@@ -34,6 +34,7 @@ model User {
   captainMatches Match[]        @relation("MatchCaptain")
   joinRequests   JoinRequest[]
   watches        Watch[]
+  chatMessages   ChatMessage[]  @relation("ChatMessageAuthor")
 
   @@map("users")
 }
@@ -105,6 +106,7 @@ model Match {
   venue        Venue         @relation(fields: [venueId], references: [id])
   joinRequests JoinRequest[]
   watches      Watch[]
+  chatMessages ChatMessage[]
 
   @@index([startTime])
   @@index([venueId])
@@ -160,4 +162,32 @@ model Watch {
   @@id([matchId, userId])
   @@index([userId])
   @@map("watches")
+}
+
+/// Per-match chat message. Source of truth: docs/spec/pitchup-spec-match.md →
+/// "Tab Chat" and docs/spec/pitchup-app-map.md → ChatMessage entity.
+///
+/// `author_id` uses ON DELETE RESTRICT — messages from banned or deleted users
+/// are never physically removed; the render layer resolves the name/avatar and
+/// falls back to `[Removed user]` if the profile is gone or banned (match.md §220).
+///
+/// `deleted_at` enables captain soft-delete (match.md §225 "[Delete]" action).
+/// Hard-delete is intentionally omitted: moderation history must survive even
+/// when the match is Cancelled, and the captain retains moderation rights.
+///
+/// Composite index on `(match_id, created_at)` drives both the ordered chat feed
+/// and the `since`-cursor used by `GET /api/matches/:id/state?since=ISO`.
+model ChatMessage {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  matchId   String    @map("match_id") @db.Uuid
+  authorId  String    @map("author_id") @db.Uuid
+  text      String    @db.VarChar(2000)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  match  Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  author User  @relation("ChatMessageAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([matchId, createdAt])
+  @@map("chat_messages")
 }

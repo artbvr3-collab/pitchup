@@ -6,10 +6,22 @@
  *          The fake `TransactionClient` is a sentinel — the fakes ignore it
  *          because the lock is mocked away (vi.mock on withMatchLock in each
  *          test file).
+ *          Layer 5 addition: FakeChatMessageRepository — used by
+ *          PostChatMessageService and DeleteChatMessageService tests.
  * LAYER: tests / helpers
  * RELATED DOCS: docs/ARCHITECTURE.md §12 (testing strategy), docs/adr/0003-…
  */
 import { asUserId, type UserId } from "@/src/auth/domain/user";
+import {
+  asChatMessageId,
+  type ChatMessage,
+  type ChatMessageId,
+} from "@/src/chat/domain/chat-message";
+import type {
+  ChatMessageRepository,
+  InsertChatMessageInput,
+  ListChatMessagesForFeedOptions,
+} from "@/src/chat/domain/chat-message-repository";
 import type { TransactionClient } from "@/src/shared/db/types";
 
 import {
@@ -263,5 +275,75 @@ export class FakeWatchRepository implements WatchRepository {
     userId: UserId,
   ): Promise<boolean> {
     return this.rows.has(`${matchId}::${userId}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ChatMessageRepository (Layer 5)
+// ---------------------------------------------------------------------------
+
+let nextMessageSeq = 1;
+function nextMessageId(): ChatMessageId {
+  const id = `msg-${String(nextMessageSeq++).padStart(8, "0")}-0000-0000-0000-000000000000`;
+  return asChatMessageId(id);
+}
+
+export class FakeChatMessageRepository implements ChatMessageRepository {
+  public rows = new Map<ChatMessageId, ChatMessage>();
+
+  /** Test helper — seed a pre-built message row directly. */
+  seed(row: ChatMessage): void {
+    this.rows.set(row.id, row);
+  }
+
+  async insert(input: InsertChatMessageInput): Promise<ChatMessage> {
+    const row: ChatMessage = {
+      id: nextMessageId(),
+      matchId: input.matchId,
+      authorId: input.authorId,
+      text: input.text,
+      createdAt: new Date("2026-05-26T10:00:00Z"),
+      deletedAt: null,
+    };
+    this.rows.set(row.id, row);
+    return row;
+  }
+
+  async findById(id: ChatMessageId): Promise<ChatMessage | null> {
+    return this.rows.get(id) ?? null;
+  }
+
+  /**
+   * Idempotent soft-delete — if already deleted, return the existing row
+   * unchanged (preserves original deletedAt).
+   */
+  async softDelete(id: ChatMessageId, now: Date): Promise<ChatMessage> {
+    const row = this.rows.get(id);
+    if (!row) throw new Error(`FakeChatMessageRepository: id ${id} not found`);
+    if (row.deletedAt !== null) return row;
+    const deleted: ChatMessage = { ...row, deletedAt: now };
+    this.rows.set(id, deleted);
+    return deleted;
+  }
+
+  async listForFeed(
+    options: ListChatMessagesForFeedOptions,
+  ): Promise<readonly ChatMessage[]> {
+    const results: ChatMessage[] = [];
+    for (const row of this.rows.values()) {
+      if (row.matchId !== options.matchId) continue;
+      if (options.since === null) {
+        results.push(row);
+      } else {
+        // OR-branch: include if created_at > since OR deleted_at > since
+        const createdAfter = row.createdAt > options.since;
+        const deletedAfter =
+          row.deletedAt !== null && row.deletedAt > options.since;
+        if (createdAfter || deletedAfter) results.push(row);
+      }
+    }
+    // Sort by createdAt ASC, then cap at limit
+    results.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    return results.slice(0, options.limit);
   }
 }
