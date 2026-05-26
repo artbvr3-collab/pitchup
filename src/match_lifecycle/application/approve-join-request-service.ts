@@ -1,0 +1,151 @@
+/**
+ * MODULE: match_lifecycle.application.approve-join-request-service
+ * PURPOSE: Use case — captain approves a pending JoinRequest. Implements
+ *          `POST /api/matches/:id/approve`: re-read match + accepted set
+ *          under advisory lock → captain check → request-exists/pending
+ *          check → hard-cap check (`computeSlots(after).filled <= capacity`)
+ *          → UPDATE status to accepted → DELETE Watch for (request.user, match)
+ *          in same tx.
+ * LAYER: application
+ * DEPENDENCIES (ports): MatchRepository, JoinRequestRepository, WatchRepository
+ * CONSUMED BY: app/api/matches/[id]/approve/route.ts
+ * INVARIANTS:
+ *   - Hard cap is canonical. `computeSlots(match, acceptedSlots + 1 +
+ *     guestCount).filled <= capacity` MUST hold. Otherwise OverCapacityError.
+ *     The captain raises Total via Edit and retries.
+ *     Spec global.md: "Total spots — hard cap on approve".
+ *   - Watch row for the now-accepted user is removed in the same transaction
+ *     — idempotent safety in case the user raced a Watch in just before
+ *     approve. Spec match.md → "Per-endpoint checklist" → POST /approve.
+ *   - Race "Approve + Cron auto-reject" / "Approve + Cancel-request" /
+ *     "Approve + Approve same request" all funnel into the same checks:
+ *     request must still be `pending` under the lock — else
+ *     AlreadyProcessedError. If the row is gone entirely → RequestNotFoundError.
+ * TODO(Layer 7 — Notifications):
+ *   - Insert `notification(type='approved', user_id=request.userId,
+ *     match_id=matchId, body=...)` INSIDE this transaction, before commit.
+ *     Spec match.md → "Write ordering: notifications inside transaction".
+ *     Layer 7 will inject a NotificationRepository port via the constructor.
+ * RELATED DOCS:
+ *   - docs/spec/pitchup-spec-match.md → "Approve flow", "Per-endpoint
+ *     checklist" → POST /approve, "Race scenarios — resolution matrix"
+ *   - docs/spec/pitchup-spec-global.md → "Total spots — hard cap on approve"
+ */
+import { asUserId } from "@/src/auth/domain/user";
+import { withMatchLock } from "@/src/shared/db/with-match-lock";
+
+import {
+  AlreadyProcessedError,
+  MatchLockedError,
+  MatchNotFoundError,
+  NotCaptainError,
+  OverCapacityError,
+  RequestNotFoundError,
+} from "../domain/errors";
+import { asJoinRequestId, type JoinRequest } from "../domain/join-request";
+import type { JoinRequestRepository } from "../domain/join-request-repository";
+import { asMatchId } from "../domain/match";
+import type { MatchRepository } from "../domain/match-repository";
+import { deriveMatchStatus } from "../domain/match-status";
+import { computeSlots } from "../domain/slot-math";
+import type { WatchRepository } from "../domain/watch-repository";
+import type { ApproveJoinRequestInput } from "./dto/approve-reject-input";
+
+export interface ApproveJoinRequestResult {
+  readonly status: "accepted";
+}
+
+export class ApproveJoinRequestService {
+  constructor(
+    private readonly matchRepository: MatchRepository,
+    private readonly joinRequestRepository: JoinRequestRepository,
+    private readonly watchRepository: WatchRepository,
+  ) {}
+
+  async execute(
+    input: ApproveJoinRequestInput,
+    now: Date,
+  ): Promise<ApproveJoinRequestResult> {
+    const matchId = asMatchId(input.matchId);
+    const captainId = asUserId(input.captainId);
+    const requestId = asJoinRequestId(input.requestId);
+
+    return withMatchLock(matchId, async (tx) => {
+      const match = await this.matchRepository.findById(matchId, tx);
+      if (!match) throw new MatchNotFoundError({ matchId });
+
+      // 1. Authorisation — only the captain.
+      if (match.captainId !== captainId) {
+        throw new NotCaptainError({ matchId, captainId });
+      }
+
+      // 2. Request must exist and belong to this match.
+      const request = await this.joinRequestRepository.findById(requestId, tx);
+      if (!request || request.matchId !== matchId) {
+        throw new RequestNotFoundError({ matchId, requestId });
+      }
+
+      // 3. Request must still be pending.
+      if (request.status !== "pending") {
+        throw new AlreadyProcessedError({
+          matchId,
+          requestId,
+          currentStatus: request.status,
+        });
+      }
+
+      // 4. Match must be live (cron may have started; cancel may have hit).
+      const accepted = await this.joinRequestRepository.listAcceptedForMatch(
+        matchId,
+        tx,
+      );
+      const acceptedSlots = sumAcceptedSlots(accepted);
+      const currentSlots = computeSlots(match, acceptedSlots);
+      const status = deriveMatchStatus(match, currentSlots, now);
+      if (status !== "open" && status !== "almostFull" && status !== "full") {
+        throw new MatchLockedError({ matchId, status });
+      }
+
+      // 5. Hard cap — would-be filled after approve must not exceed capacity.
+      const afterSlots = computeSlots(
+        match,
+        acceptedSlots + 1 + request.guestCount,
+      );
+      if (afterSlots.filled > afterSlots.capacity) {
+        throw new OverCapacityError({
+          matchId,
+          requestId,
+          guestCount: request.guestCount,
+          free: currentSlots.free,
+        });
+      }
+
+      // 6. Flip pending → accepted.
+      await this.joinRequestRepository.updateStatus(
+        requestId,
+        "accepted",
+        null,
+        tx,
+      );
+
+      // 7. Same-tx Watch cleanup for the approved user (race-safety;
+      //    `POST /watch` enforces isFull, but cached tabs / direct curls
+      //    may have planted a Watch a moment ago).
+      await this.watchRepository.deleteForUserAndMatch(
+        matchId,
+        request.userId,
+        tx,
+      );
+
+      // TODO(Layer 7): notification(type='approved') for request.userId.
+
+      return { status: "accepted" as const };
+    });
+  }
+}
+
+function sumAcceptedSlots(requests: readonly JoinRequest[]): number {
+  let total = 0;
+  for (const r of requests) total += 1 + r.guestCount;
+  return total;
+}

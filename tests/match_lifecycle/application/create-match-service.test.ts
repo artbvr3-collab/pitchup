@@ -47,6 +47,10 @@ class FakeMatchRepository implements MatchRepository {
     this.created.push(input);
     return asMatchId("00000000-0000-0000-0000-000000000099");
   }
+
+  async findById(): Promise<null> {
+    return null;
+  }
 }
 
 class FakeVenueRepository implements VenueRepository {

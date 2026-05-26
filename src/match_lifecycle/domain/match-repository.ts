@@ -9,6 +9,11 @@
  *          Layer 3 scope: `create()` inserts a new Match row. No advisory
  *          lock is taken — the id doesn't exist yet (spec: "Concurrency &
  *          locking" → exceptions).
+ *          Layer 4 scope: `findById(id, tx?)` — read a single match by id,
+ *          optionally inside a caller-controlled transaction (advisory-lock
+ *          critical section). No separate `findByIdForUpdate` because the
+ *          advisory lock already serializes mutations on the match;
+ *          `SELECT ... FOR UPDATE` would be theatre on top.
  * LAYER: domain
  * DEPENDENCIES: ./match, src/auth/domain/user
  * CONSUMED BY: src/match_lifecycle/application/list-discover-matches.ts,
@@ -30,7 +35,8 @@
  *               docs/ARCHITECTURE.md §8, ADR-0003.
  */
 import type { UserId } from "@/src/auth/domain/user";
-import type { MatchId, MatchWithVenue } from "./match";
+import type { TransactionClient } from "@/src/shared/db/types";
+import type { Match, MatchId, MatchWithVenue } from "./match";
 import type { Surface, VenueId } from "./venue";
 
 export type DiscoverTimeOfDay = "morning" | "afternoon" | "evening";
@@ -101,4 +107,9 @@ export interface MatchRepository {
     options: FindDiscoverPageOptions,
   ): Promise<FindDiscoverPageResult>;
   create(input: CreateMatchPersistenceInput): Promise<MatchId>;
+  /**
+   * Read a single match by id. Pass `tx` from `withMatchLock` to read under
+   * the advisory lock; omit it for unlocked reads (e.g. future detail page).
+   */
+  findById(id: MatchId, tx?: TransactionClient): Promise<Match | null>;
 }

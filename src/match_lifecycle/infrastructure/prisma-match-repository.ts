@@ -26,9 +26,10 @@
  *     expansion from user input.
  * RELATED DOCS: docs/ARCHITECTURE.md §8, docs/spec/pitchup-spec-discovery.md.
  */
-import { Prisma, type PrismaClient } from "@prisma/client";
+import { Prisma, type Match as MatchRow, type PrismaClient } from "@prisma/client";
 import { asUserId } from "@/src/auth/domain/user";
-import { asMatchId, type MatchId, type MatchWithVenue } from "../domain/match";
+import type { TransactionClient } from "@/src/shared/db/types";
+import { asMatchId, type Match, type MatchId, type MatchWithVenue } from "../domain/match";
 import type {
   CreateMatchPersistenceInput,
   DiscoverTimeOfDay,
@@ -211,6 +212,36 @@ export class PrismaMatchRepository implements MatchRepository {
     });
     return asMatchId(row.id);
   }
+
+  async findById(id: MatchId, tx?: TransactionClient): Promise<Match | null> {
+    const client = tx ?? this.prisma;
+    const row = await client.match.findUnique({ where: { id } });
+    return row ? matchRowToDomain(row) : null;
+  }
+}
+
+function matchRowToDomain(row: MatchRow): Match {
+  return {
+    id: asMatchId(row.id),
+    captainId: asUserId(row.captainId),
+    venueId: asVenueId(row.venueId),
+    startTime: row.startTime,
+    duration: row.duration,
+    totalSpots: row.totalSpots,
+    price: row.price,
+    surface: row.surface as Surface,
+    studsAllowed: row.studsAllowed,
+    fieldBooked: row.fieldBooked,
+    description: row.description,
+    descriptionHidden: row.descriptionHidden,
+    captainCrew: row.captainCrew,
+    cancelledAt: row.cancelledAt,
+    cancelReason: row.cancelReason,
+    cancelReasonHidden: row.cancelReasonHidden,
+    coverId: row.coverId,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
 }
 
 function escapeIlike(value: string): string {

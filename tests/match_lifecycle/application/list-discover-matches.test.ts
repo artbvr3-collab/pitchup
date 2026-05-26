@@ -50,6 +50,10 @@ class FakeMatchRepository implements MatchRepository {
   async create(_input: CreateMatchPersistenceInput): Promise<never> {
     throw new Error("not implemented in FakeMatchRepository for discover tests");
   }
+
+  async findById(): Promise<null> {
+    return null;
+  }
 }
 
 const NOW = new Date("2026-05-26T10:00:00Z"); // Prague 2026-05-26

@@ -2,9 +2,9 @@
 // Source of truth for the spec: docs/spec/pitchup-app-map.md → "Main entities"
 //                              docs/spec/pitchup-spec-global.md → "Authentication", "Slot math", "Field surface", "Cover venue"
 //                              docs/spec/pitchup-spec-match.md → "Match states"
-// Layers: 1 (User), 2 (Match + Venue read-only). Subsequent layers grow this file
-// (JoinRequest, Watch, ChatMessage, ChatRead, Notification, Report, AdminAction,
-// ReminderSent, Like — see app-map ERD).
+// Layers: 1 (User), 2 (Match + Venue read-only), 4 (JoinRequest + Watch).
+// Subsequent layers grow this file (ChatMessage, ChatRead, Notification, Report,
+// AdminAction, ReminderSent, Like — see app-map ERD).
 
 generator client {
   provider = "prisma-client-js"
@@ -31,7 +31,9 @@ model User {
   deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(6)
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  captainMatches Match[] @relation("MatchCaptain")
+  captainMatches Match[]        @relation("MatchCaptain")
+  joinRequests   JoinRequest[]
+  watches        Watch[]
 
   @@map("users")
 }
@@ -99,11 +101,63 @@ model Match {
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  captain User  @relation("MatchCaptain", fields: [captainId], references: [id])
-  venue   Venue @relation(fields: [venueId], references: [id])
+  captain      User          @relation("MatchCaptain", fields: [captainId], references: [id])
+  venue        Venue         @relation(fields: [venueId], references: [id])
+  joinRequests JoinRequest[]
+  watches      Watch[]
 
   @@index([startTime])
   @@index([venueId])
   @@index([captainId])
   @@map("matches")
+}
+
+/// A player's request to join a match. UNIQUE(match_id, user_id) — one row per
+/// pair. Re-apply after rejected/cancelled/left/kicked is an UPDATE → pending
+/// (not a new INSERT). Statuses `accepted` and `pending` count as active; the
+/// rest are terminal (history kept for Section Past and re-apply validation).
+///
+/// `autoReason` is non-null only for system-driven rejects: `match_started`
+/// (cron) or `match_cancelled` (mass-reject on captain Cancel). Captain reject
+/// uses `auto_reason = NULL`. Spec: match.md → "Player match states",
+/// "Auto-rejected pending are distinguishable by auto_reason".
+///
+/// `guestCount` 0..4 — anonymous +N companions; inseparable from the host
+/// (Leave/Kick frees the whole 1+N group). Spec: global.md → "Guests (+N on join)".
+model JoinRequest {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  matchId    String   @map("match_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  status     String
+  guestCount Int      @default(0) @map("guest_count") @db.SmallInt
+  message    String?
+  autoReason String?  @map("auto_reason")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([matchId, userId])
+  @@index([matchId, status])
+  @@index([userId])
+  @@map("join_requests")
+}
+
+/// "Notify me when a spot opens" flag on a `(user, match)` pair. Composite PK,
+/// no separate id. Created only on a full match (backend guard in `POST /watch`,
+/// Layer 5+); deleted on Join (same tx as JoinRequest UPSERT), Approve (same tx),
+/// and `notify watching` slot-freed sub-operation. Spec: match.md → "Watching
+/// logic", app-map ERD → Watch.
+model Watch {
+  matchId   String   @map("match_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@id([matchId, userId])
+  @@index([userId])
+  @@map("watches")
 }

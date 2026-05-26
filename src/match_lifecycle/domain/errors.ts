@@ -85,3 +85,107 @@ export class VenueInactiveError extends AppError {
     super("venue_inactive", "This venue is no longer available", 409, meta);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Layer 4 — Join / Approve / Reject
+// Codes mirror docs/spec/pitchup-spec-match.md → "Per-endpoint checklist".
+// ---------------------------------------------------------------------------
+
+/**
+ * `404 match_not_found` — the match id does not exist (or was hard-deleted by
+ * admin). Distinct from `match_locked`, which means the match exists but its
+ * computed status is not `live`.
+ */
+export class MatchNotFoundError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super("match_not_found", "Match not found", 404, meta);
+  }
+}
+
+/**
+ * `409 match_locked` — the match's computed status is not `live`
+ * (InProgress / Ended / Cancelled), so the operation is refused regardless
+ * of slots or role. Same code is used for "start_time already passed but
+ * cron hasn't run yet" — status is computed on-read.
+ */
+export class MatchLockedError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super("match_locked", "Match is no longer open for changes", 409, meta);
+  }
+}
+
+/**
+ * `400 captain_cannot_join` — the authenticated user is the captain of this
+ * match. Backstop against a direct curl; the UI hides the Join button.
+ */
+export class CaptainCannotJoinError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super("captain_cannot_join", "Captain cannot join their own match", 400, meta);
+  }
+}
+
+/**
+ * `409 already_requested` — a JoinRequest with status=`pending` already exists
+ * for this (match, user) pair. Idempotency: client may retry on a flaky
+ * network and see this — treat as success-no-op in the UI.
+ */
+export class AlreadyRequestedError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super("already_requested", "You already applied to this match", 409, meta);
+  }
+}
+
+/**
+ * `409 already_in_match` — a JoinRequest with status=`accepted` already exists
+ * for this (match, user) pair (the player is already on the roster).
+ */
+export class AlreadyInMatchError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super("already_in_match", "You are already on this match's roster", 409, meta);
+  }
+}
+
+/**
+ * `409 over_capacity` — approving this request would push computed
+ * `filled` past `total_spots`. Captain UX is to raise total via Edit, then
+ * approve. Hard cap is canonical — spec global.md "Total spots — hard cap".
+ */
+export class OverCapacityError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super("over_capacity", "Not enough spots to approve this request", 409, meta);
+  }
+}
+
+/**
+ * `404 request_not_found` — the JoinRequest id does not exist, or does not
+ * belong to this match. Returned by Approve / Reject when the targeted row
+ * cannot be located under the lock.
+ */
+export class RequestNotFoundError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super("request_not_found", "Join request not found", 404, meta);
+  }
+}
+
+/**
+ * `409 already_processed` — the JoinRequest exists but its status is no longer
+ * `pending` (already accepted by another captain tab, auto-rejected by cron,
+ * cancelled by the user, or terminal in some other way).
+ */
+export class AlreadyProcessedError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super("already_processed", "Join request has already been processed", 409, meta);
+  }
+}
+
+/**
+ * `403 not_captain` — the authenticated user is not the captain of this
+ * match. Backstop against direct curl on Approve / Reject (UI hides the
+ * captain sheet for non-captains, see spec match.md → `[Manage match]`
+ * visibility).
+ */
+export class NotCaptainError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super("not_captain", "Only the captain can perform this action", 403, meta);
+  }
+}
