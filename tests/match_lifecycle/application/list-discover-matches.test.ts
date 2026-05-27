@@ -54,6 +54,14 @@ class FakeMatchRepository implements MatchRepository {
   async findById(): Promise<null> {
     return null;
   }
+
+  async findCaptainMatches(): Promise<readonly never[]> {
+    return [];
+  }
+
+  async findByIds(): Promise<readonly never[]> {
+    return [];
+  }
 }
 
 const NOW = new Date("2026-05-26T10:00:00Z"); // Prague 2026-05-26

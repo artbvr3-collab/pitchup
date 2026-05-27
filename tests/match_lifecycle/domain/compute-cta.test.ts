@@ -204,20 +204,48 @@ describe("computeCta — cascade matrix", () => {
   }
 });
 
-describe("computeCta — Layer 5 scope markers", () => {
-  it("Layer 6 actions are flagged comingSoon", () => {
+describe("computeCta — scope markers", () => {
+  it("Layer 6 actions (leave / cancelRequest / notifyMe / stopWatching) are NOT comingSoon and NOT disabled", () => {
     const live = (role: ViewerRole, isFull: boolean) =>
       computeCta({ matchStatus: "open", viewerRole: role, isFull });
+    const full = (role: ViewerRole) =>
+      computeCta({ matchStatus: "full", viewerRole: role, isFull: true });
 
-    expect(live("accepted", false).secondary?.comingSoon).toBe(true);
-    expect(live("pending", false).secondary?.comingSoon).toBe(true);
-    expect(live("watching", true).secondary?.comingSoon).toBe(true);
-    expect(live("none", true).primary.comingSoon).toBe(true);
+    // leave (accepted secondary)
+    const accepted = live("accepted", false).secondary!;
+    expect(accepted.comingSoon).toBe(false);
+    expect(accepted.disabled).toBe(false);
 
+    // cancelRequest (pending secondary)
+    const pending = live("pending", false).secondary!;
+    expect(pending.comingSoon).toBe(false);
+    expect(pending.disabled).toBe(false);
+
+    // stopWatching (watching secondary, only valid when isFull)
+    const watching = full("watching").secondary!;
+    expect(watching.comingSoon).toBe(false);
+    expect(watching.disabled).toBe(false);
+
+    // notifyMe (none + isFull primary)
+    const notify = full("none").primary;
+    expect(notify.comingSoon).toBe(false);
+    expect(notify.disabled).toBe(false);
+  });
+
+  it("`like` remains comingSoon (Layer 6.X — Like aggregate not yet built)", () => {
     const ended = (role: ViewerRole) =>
       computeCta({ matchStatus: "ended", viewerRole: role, isFull: false });
     expect(ended("captain").primary.comingSoon).toBe(true);
     expect(ended("accepted").primary.comingSoon).toBe(true);
+  });
+
+  it("non-action primary labels (info) stay disabled — they are not buttons", () => {
+    // accepted/pending/watching all show an info-style primary that is
+    // disabled by design; only their `secondary` action is wired in Layer 6.
+    const open = (role: ViewerRole) =>
+      computeCta({ matchStatus: "open", viewerRole: role, isFull: false });
+    expect(open("accepted").primary.disabled).toBe(true);
+    expect(open("pending").primary.disabled).toBe(true);
   });
 
   it("Layer 5 actions (join / manage / signIn) are NOT comingSoon", () => {

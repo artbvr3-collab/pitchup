@@ -19,12 +19,17 @@ import { userRepository } from "@/src/auth/infrastructure/repositories";
 import { chatMessageRepository } from "@/src/chat/infrastructure/repositories";
 
 import { ApproveJoinRequestService } from "./application/approve-join-request-service";
+import { CancelJoinRequestService } from "./application/cancel-join-request-service";
 import { CreateMatchService } from "./application/create-match-service";
 import { JoinMatchService } from "./application/join-match-service";
+import { LeaveMatchService } from "./application/leave-match-service";
 import { ListDiscoverMatchesService } from "./application/list-discover-matches";
+import { ListMyMatchesService } from "./application/list-my-matches-service";
 import { ListVenuesService } from "./application/list-venues-service";
 import { MatchStateService } from "./application/match-state-service";
 import { RejectJoinRequestService } from "./application/reject-join-request-service";
+import { UnwatchMatchService } from "./application/unwatch-match-service";
+import { WatchMatchService } from "./application/watch-match-service";
 import {
   joinRequestRepository,
   matchRepository,
@@ -66,4 +71,28 @@ export const matchStateService = new MatchStateService(
   watchRepository,
   chatMessageRepository,
   userRepository,
+);
+
+export const leaveMatchService = new LeaveMatchService(
+  matchRepository,
+  joinRequestRepository,
+  watchRepository,
+);
+
+export const cancelJoinRequestService = new CancelJoinRequestService(
+  joinRequestRepository,
+);
+
+export const watchMatchService = new WatchMatchService(
+  matchRepository,
+  joinRequestRepository,
+  watchRepository,
+);
+
+export const unwatchMatchService = new UnwatchMatchService(watchRepository);
+
+export const listMyMatchesService = new ListMyMatchesService(
+  matchRepository,
+  joinRequestRepository,
+  watchRepository,
 );

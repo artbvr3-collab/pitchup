@@ -189,3 +189,53 @@ export class NotCaptainError extends AppError {
     super("not_captain", "Only the captain can perform this action", 403, meta);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Layer 6 — Leave / CancelRequest / Watch / Unwatch
+// Codes mirror docs/spec/pitchup-spec-match.md → "Per-endpoint checklist"
+// (POST /leave, /cancel-request, /watch + DELETE /watch).
+// ---------------------------------------------------------------------------
+
+/**
+ * `404 not_in_match` — `POST /leave` was called for a (match, user) pair
+ * that has no JoinRequest row or one with a non-`accepted` status. Frontend
+ * treats this as success-no-op (the desired state "user not in match" is
+ * already true). Spec match.md → "Per-endpoint checklist" → POST /leave.
+ */
+export class NotInMatchError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super("not_in_match", "You are not on this match's roster", 404, meta);
+  }
+}
+
+/**
+ * `400 captain_cannot_watch` — the captain tapped `[Notify me]` on their
+ * own match (backstop against direct curl; the UI hides the button via
+ * `computeCta` which never produces `notifyMe` for the captain branch).
+ * Spec match.md → "Per-endpoint checklist" → POST /watch.
+ */
+export class CaptainCannotWatchError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super(
+      "captain_cannot_watch",
+      "Captain cannot watch their own match",
+      400,
+      meta,
+    );
+  }
+}
+
+/**
+ * `409 not_full` — `POST /watch` was called on a match where
+ * `computeSlots(match).isFull === false`. Caused by a race: the user opened
+ * a full match in the background, someone left + `notify watching` ran +
+ * Watch rows were cleared, the user returned and tapped `[Notify me]`
+ * without seeing the update. Spec match.md → "Per-endpoint checklist" +
+ * "Watching logic" → "Watch is only created on a full match". Frontend toast:
+ * `"A spot just opened — refresh to join"` + CTA redraws to `[Join match]`.
+ */
+export class MatchNotFullError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super("not_full", "Match is not full — no need to watch", 409, meta);
+  }
+}

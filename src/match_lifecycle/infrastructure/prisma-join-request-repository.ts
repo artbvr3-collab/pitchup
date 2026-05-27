@@ -148,6 +148,13 @@ export class PrismaJoinRequestRepository implements JoinRequestRepository {
     });
     return rows.map(toDomain);
   }
+
+  async listForUser(userId: UserId): Promise<readonly JoinRequest[]> {
+    const rows = await this.prisma.joinRequest.findMany({
+      where: { userId },
+    });
+    return rows.map(toDomain);
+  }
 }
 
 function toDomain(row: JoinRequestRow): JoinRequest {

@@ -109,4 +109,13 @@ export interface JoinRequestRepository {
     matchId: MatchId,
     tx?: TransactionClient,
   ): Promise<readonly JoinRequest[]>;
+
+  /**
+   * Layer 6 — all JoinRequest rows for the given user, regardless of status.
+   * Used by `ListMyMatchesService` to bucket cards into Captain (n/a) /
+   * Upcoming (pending, accepted) / Past (everything else, plus accepted on a
+   * cancelled match). Unlocked read. Returns rows in arbitrary order; the
+   * service joins them with match rows via `MatchRepository.findByIds`.
+   */
+  listForUser(userId: UserId): Promise<readonly JoinRequest[]>;
 }

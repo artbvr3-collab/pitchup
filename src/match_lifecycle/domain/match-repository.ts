@@ -112,4 +112,21 @@ export interface MatchRepository {
    * the advisory lock; omit it for unlocked reads (e.g. future detail page).
    */
   findById(id: MatchId, tx?: TransactionClient): Promise<Match | null>;
+
+  /**
+   * Layer 6 — all matches the user is captain of, any status (live + past +
+   * cancelled). Joined with venue. Used by `ListMyMatchesService` to render
+   * Section Captain (live statuses) and to surface captain history in
+   * Section Past. Returned in `start_time ASC` order so callers can both
+   * walk-forward for Captain section and re-sort DESC for Past.
+   */
+  findCaptainMatches(userId: UserId): Promise<readonly MatchWithVenue[]>;
+
+  /**
+   * Layer 6 — batch lookup by id. Returned in arbitrary order; missing ids
+   * are simply absent. Joined with venue. Used by `ListMyMatchesService` to
+   * resolve matches referenced by JoinRequest / Watch listings without N
+   * round-trips. Mirrors the convention from `UserRepository.findByIds`.
+   */
+  findByIds(ids: readonly MatchId[]): Promise<readonly MatchWithVenue[]>;
 }

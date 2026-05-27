@@ -218,6 +218,59 @@ export class PrismaMatchRepository implements MatchRepository {
     const row = await client.match.findUnique({ where: { id } });
     return row ? matchRowToDomain(row) : null;
   }
+
+  async findCaptainMatches(
+    userId: string,
+  ): Promise<readonly MatchWithVenue[]> {
+    const rows = await this.prisma.match.findMany({
+      where: { captainId: userId },
+      include: { venue: true },
+      orderBy: [{ startTime: "asc" }, { id: "asc" }],
+    });
+    return rows.map(matchWithVenueRowToDomain);
+  }
+
+  async findByIds(
+    ids: readonly MatchId[],
+  ): Promise<readonly MatchWithVenue[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.prisma.match.findMany({
+      where: { id: { in: ids as unknown as string[] } },
+      include: { venue: true },
+    });
+    return rows.map(matchWithVenueRowToDomain);
+  }
+}
+
+type MatchWithVenueRow = MatchRow & {
+  venue: {
+    id: string;
+    name: string;
+    address: string;
+    lat: number;
+    lng: number;
+    googleMapsUrl: string | null;
+    surface: string[];
+    coverId: string;
+    active: boolean;
+  };
+};
+
+function matchWithVenueRowToDomain(row: MatchWithVenueRow): MatchWithVenue {
+  return {
+    ...matchRowToDomain(row),
+    venue: {
+      id: asVenueId(row.venue.id),
+      name: row.venue.name,
+      address: row.venue.address,
+      lat: row.venue.lat,
+      lng: row.venue.lng,
+      googleMapsUrl: row.venue.googleMapsUrl,
+      surface: row.venue.surface as readonly Surface[],
+      coverId: row.venue.coverId,
+      active: row.venue.active,
+    },
+  };
 }
 
 function matchRowToDomain(row: MatchRow): Match {

@@ -4,22 +4,38 @@
  *          - Layer 4: idempotent delete inside the Join/Approve transactions
  *            (a successful Join wipes the user's Watch for that match in the
  *            same tx; Approve does the same as a safety against a Watch race).
- *          - Layer 5: read-only `countForMatch` for the polling lineup
- *            snapshot — surfaces `watching_count` to all viewers (spec
- *            match.md "Tab Lineup → watching counter").
- *          INSERT + isFull check live in `POST /watch`, which lands in a
- *          later layer. The port grows when those methods are first called;
- *          do not pre-add methods we don't yet use.
+ *          - Layer 5: read-only `countForMatch` + `existsForUserAndMatch` for
+ *            the polling lineup snapshot and the RSC viewer-role derivation.
+ *          - Layer 6: full WRITE surface for POST/DELETE /watch +
+ *            notify-watching one-shot:
+ *              · `upsertForUserAndMatch` — INSERT ON CONFLICT DO NOTHING,
+ *                returns outcome so the service can log "existed" without
+ *                surfacing it to the client (idempotent re-subscribe).
+ *              · `listForMatch` — collects user ids for the notification
+ *                fan-out inside `notifyWatching`.
+ *              · `deleteAllForMatch` — bulk delete of all Watch rows for a
+ *                match in one statement; called by `notifyWatching` after
+ *                the user-id list is captured.
+ *              · `listMatchIdsForUser` — unlocked read used by
+ *                `ListMyMatchesService` to find matches the user is
+ *                watching (drives the `👀 Watching` cards in Section
+ *                Upcoming).
  * LAYER: domain
  * DEPENDENCIES: ./match, src/auth/domain/user, src/shared/db/types
- * CONSUMED BY: src/match_lifecycle/application/{join,approve}-*-service,
+ * CONSUMED BY: src/match_lifecycle/application/{join,approve,leave,watch,
+ *              unwatch,list-my-matches,notify-watching}-service,
  *              src/match_lifecycle/infrastructure/prisma-watch-repository
  * INVARIANTS:
- *   - `deleteForUserAndMatch` is idempotent: deleting a non-existent row is a
- *     no-op. Composite PK (match_id, user_id) makes this safe.
+ *   - `deleteForUserAndMatch` + `deleteAllForMatch` are idempotent: deleting
+ *     non-existent rows is a no-op.
+ *   - `upsertForUserAndMatch` is also idempotent — an existing row counts
+ *     as success (`outcome: 'existed'`); the service maps both branches to
+ *     `200 OK`.
+ *   - `listForMatch` returns user ids in arbitrary order. Callers are
+ *     responsible for any sort they need.
  *   - Spec: match.md → "Watching logic" → "What happens to the Watch record
- *     on Join", and Per-endpoint checklist → POST /approve (DELETE watch
- *     same tx).
+ *     on Join", "notify watching (DRY sub-operation)", "Per-endpoint checklist"
+ *     → POST /watch, DELETE /watch.
  * RELATED DOCS:
  *   - docs/spec/pitchup-spec-match.md → "Watching logic", "Per-endpoint checklist"
  *   - ADR-0003
@@ -28,6 +44,8 @@ import type { UserId } from "@/src/auth/domain/user";
 import type { TransactionClient } from "@/src/shared/db/types";
 
 import type { MatchId } from "./match";
+
+export type UpsertWatchOutcome = "inserted" | "existed";
 
 export interface WatchRepository {
   /** Idempotent. No error if no row exists. */
@@ -52,4 +70,46 @@ export interface WatchRepository {
    * the canonical lock and re-checks.
    */
   existsForUserAndMatch(matchId: MatchId, userId: UserId): Promise<boolean>;
+
+  /**
+   * INSERT ON CONFLICT DO NOTHING under the advisory lock. Returns
+   * `inserted` on a fresh row, `existed` if the pair was already present
+   * (idempotent re-subscribe). The service exposes both as `200 OK`.
+   */
+  upsertForUserAndMatch(
+    matchId: MatchId,
+    userId: UserId,
+    tx: TransactionClient,
+  ): Promise<UpsertWatchOutcome>;
+
+  /**
+   * All user ids with a Watch row for the given match. Called by
+   * `notifyWatching` to gather recipients before deletion. Returns ids in
+   * arbitrary order. Caller invokes under the same advisory lock so that
+   * the list captured here is consistent with the subsequent
+   * `deleteAllForMatch`.
+   */
+  listForMatch(
+    matchId: MatchId,
+    tx: TransactionClient,
+  ): Promise<readonly UserId[]>;
+
+  /**
+   * Bulk DELETE of every Watch row for the match in one statement. Returns
+   * the number of rows removed (for logging). Called by `notifyWatching`
+   * after `listForMatch`. Idempotent — zero rows is a normal outcome on a
+   * non-full match where nobody was watching.
+   */
+  deleteAllForMatch(
+    matchId: MatchId,
+    tx: TransactionClient,
+  ): Promise<number>;
+
+  /**
+   * Unlocked read — match ids the user has a Watch row on. Used by
+   * `ListMyMatchesService` for /my-matches Section Upcoming (`👀 Watching`
+   * cards). Returns ids in arbitrary order; caller joins with match rows
+   * via `MatchRepository.findByIds`.
+   */
+  listMatchIdsForUser(userId: UserId): Promise<readonly MatchId[]>;
 }

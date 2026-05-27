@@ -7,20 +7,22 @@
  *          row in the implementation; `MatchCtaBar` only renders the result.
  * LAYER: domain (pure)
  * DEPENDENCIES: ./match-status (MatchStatus enum)
- * CONSUMED BY: src/match_lifecycle/ui/match-cta-bar.tsx (Layer 5),
+ * CONSUMED BY: src/match_lifecycle/ui/match-cta-bar.tsx,
  *              tests/match_lifecycle/domain/compute-cta.test.ts
  * INVARIANTS:
  *   - Status precedence: Cancelled → Ended → InProgress → live. Status
  *     branch wins over role for the three completed states. Spec §105.
  *   - Live branch fans out by role; `isFull` only affects the `none` role
  *     (Notify-me vs Join) and the `pending` informational footer line.
- *   - Out-of-scope actions in Layer 5 (`leave` / `cancelRequest` / `watch` /
- *     `stopWatching` / `like`) are returned with `disabled: true` and the
- *     `comingSoon` flag set. The UI shows them greyed-out with a "Coming
- *     soon" tooltip — backend endpoints land in Layer 6+.
- *   - `signIn` (guest on live match) is also `disabled: true` here — the
- *     UI wraps it as a link to `/login?callbackUrl=/matches/:id`, which is
- *     the standard middleware-driven redirect.
+ *   - Layer 6 lit up `leave` / `cancelRequest` / `notifyMe` / `stopWatching`
+ *     — these are now active actions with working backends (POST /leave,
+ *     POST /cancel-request, POST /watch, DELETE /watch). They are returned
+ *     with `disabled: false, comingSoon: false` so the UI wires their
+ *     onClick handlers without a "Coming soon" tooltip.
+ *   - `like` remains `comingSoon: true` — Like aggregate ships in Layer 6.X.
+ *   - `signIn` (guest on live match) is `disabled: true` here — the UI
+ *     wraps it as a link to `/login?callbackUrl=/matches/:id`, which is the
+ *     standard middleware-driven redirect.
  *   - The cascade does NOT inspect `viewerId` or any user-specific field
  *     beyond the role enum — keeps the function easily memoizable in the
  *     client island.
@@ -49,12 +51,12 @@ export type ViewerRole =
 export type CtaActionType =
   | "signIn" //          guest on live status
   | "join" //            none + not-full
-  | "notifyMe" //        none + isFull (Layer 6+ — disabled with comingSoon)
+  | "notifyMe" //        none + isFull (Layer 6 — wired)
   | "manage" //          captain on live status
-  | "leave" //           accepted (Layer 6+)
-  | "cancelRequest" //   pending (Layer 6+)
-  | "stopWatching" //    watching (Layer 6+)
-  | "like" //            captain/accepted on Ended (Layer 6+)
+  | "leave" //           accepted (Layer 6 — wired)
+  | "cancelRequest" //   pending (Layer 6 — wired)
+  | "stopWatching" //    watching (Layer 6 — wired)
+  | "like" //            captain/accepted on Ended (Layer 6.X — comingSoon)
   | "none"; //           pure-disabled label, no action
 
 export interface CtaAction {
@@ -62,17 +64,17 @@ export interface CtaAction {
   /** Visible button label, e.g. "Join match" / "Sign in to join". */
   readonly label: string;
   /**
-   * `true` when the button is rendered but inert. Either out-of-scope for
-   * Layer 5 (`comingSoon`) or naturally disabled by the cascade (e.g.
-   * "Waiting for organizer..." for pending). Mutually exclusive with a
-   * working `onClick` handler.
+   * `true` when the button is rendered but inert. Either out-of-scope (still
+   * `comingSoon`) or naturally disabled by the cascade (e.g. "Waiting for
+   * organizer..." for pending). Mutually exclusive with a working `onClick`
+   * handler.
    */
   readonly disabled: boolean;
   /**
-   * Marks actions deferred to Layer 6+. The UI surfaces this as a
-   * non-blocking tooltip "Coming soon". Distinct from `disabled` alone —
-   * `disabled` ∧ `!comingSoon` is the natural "you're waiting for someone
-   * else" case (pending).
+   * Marks actions still deferred to a later layer (Layer 6.X — `like`).
+   * The UI surfaces this as a non-blocking "Coming soon" tooltip. Distinct
+   * from `disabled` alone — `disabled` ∧ `!comingSoon` is the natural
+   * "you're waiting for someone else" case (pending primary label).
    */
   readonly comingSoon: boolean;
   /**
@@ -123,14 +125,14 @@ export function computeCta(input: ComputeCtaInput): CtaSpec {
   }
 
   if (matchStatus === "ended") {
-    // Captain + accepted get [Like teammates] (Layer 6 — disabled here).
+    // Captain + accepted get [Like teammates] (Layer 6.X — still comingSoon).
     if (viewerRole === "captain" || viewerRole === "accepted") {
       return {
         primary: makeComingSoon(
           "like",
           "Like teammates",
           "primary",
-          "Coming in Layer 6",
+          "Coming soon",
         ),
       };
     }
@@ -177,12 +179,7 @@ export function computeCta(input: ComputeCtaInput): CtaSpec {
         comingSoon: false,
         variant: "info",
       },
-      secondary: makeComingSoon(
-        "leave",
-        "Leave match",
-        "ghost",
-        "Coming in Layer 6",
-      ),
+      secondary: makeActive("leave", "Leave match", "ghost"),
     };
   }
 
@@ -195,12 +192,7 @@ export function computeCta(input: ComputeCtaInput): CtaSpec {
         comingSoon: false,
         variant: "info",
       },
-      secondary: makeComingSoon(
-        "cancelRequest",
-        "Cancel request",
-        "ghost",
-        "Coming in Layer 6",
-      ),
+      secondary: makeActive("cancelRequest", "Cancel request", "ghost"),
     };
     if (isFull) {
       return { ...spec, note: "Match is now full · captain may still approve" };
@@ -217,23 +209,17 @@ export function computeCta(input: ComputeCtaInput): CtaSpec {
         comingSoon: false,
         variant: "info",
       },
-      secondary: makeComingSoon(
-        "stopWatching",
-        "Stop watching",
-        "ghost",
-        "Coming in Layer 6",
-      ),
+      secondary: makeActive("stopWatching", "Stop watching", "ghost"),
     };
   }
 
   // viewerRole === "none"
   if (isFull) {
     return {
-      primary: makeComingSoon(
+      primary: makeActive(
         "notifyMe",
         "Notify me if a spot opens",
         "primary",
-        "Coming in Layer 6",
       ),
     };
   }
@@ -259,6 +245,15 @@ function makeDisabled(
   variant: CtaAction["variant"],
 ): CtaAction {
   return { type, label, disabled: true, comingSoon: false, variant };
+}
+
+/** Layer 6+ — action with a working backend; UI wires its onClick. */
+function makeActive(
+  type: CtaActionType,
+  label: string,
+  variant: CtaAction["variant"],
+): CtaAction {
+  return { type, label, disabled: false, comingSoon: false, variant };
 }
 
 function makeComingSoon(

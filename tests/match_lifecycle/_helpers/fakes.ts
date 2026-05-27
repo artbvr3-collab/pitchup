@@ -57,7 +57,12 @@ import {
   asVenueId,
   type Surface,
 } from "@/src/match_lifecycle/domain/venue";
-import type { WatchRepository } from "@/src/match_lifecycle/domain/watch-repository";
+import type {
+  UpsertWatchOutcome,
+  WatchRepository,
+} from "@/src/match_lifecycle/domain/watch-repository";
+import type { MatchWithVenue } from "@/src/match_lifecycle/domain/match";
+import type { Venue } from "@/src/match_lifecycle/domain/venue";
 
 /** Sentinel TransactionClient — fakes never inspect it. */
 export const FAKE_TX = {} as unknown as TransactionClient;
@@ -105,9 +110,16 @@ export function makeMatch(overrides: Partial<Match> = {}): Match {
 
 export class FakeMatchRepository implements MatchRepository {
   private matches = new Map<MatchId, Match>();
+  /** Per-match venue override; falls back to FAKE_VENUE if absent. */
+  private venuesByMatch = new Map<MatchId, Venue>();
 
   put(match: Match): void {
     this.matches.set(match.id, match);
+  }
+
+  /** Attach a venue for a given match — used by Layer 6 /my-matches tests. */
+  putVenue(matchId: MatchId, venue: Venue): void {
+    this.venuesByMatch.set(matchId, venue);
   }
 
   async findById(id: MatchId): Promise<Match | null> {
@@ -123,7 +135,49 @@ export class FakeMatchRepository implements MatchRepository {
   async create(_input: CreateMatchPersistenceInput): Promise<MatchId> {
     throw new Error("create() not used in Layer 4 tests");
   }
+
+  async findCaptainMatches(
+    userId: UserId,
+  ): Promise<readonly MatchWithVenue[]> {
+    const out: MatchWithVenue[] = [];
+    for (const m of this.matches.values()) {
+      if (m.captainId === userId) out.push(this.attachVenue(m));
+    }
+    out.sort((a, b) =>
+      a.startTime.getTime() === b.startTime.getTime()
+        ? a.id.localeCompare(b.id)
+        : a.startTime.getTime() - b.startTime.getTime(),
+    );
+    return out;
+  }
+
+  async findByIds(
+    ids: readonly MatchId[],
+  ): Promise<readonly MatchWithVenue[]> {
+    const out: MatchWithVenue[] = [];
+    for (const id of ids) {
+      const m = this.matches.get(id);
+      if (m) out.push(this.attachVenue(m));
+    }
+    return out;
+  }
+
+  private attachVenue(m: Match): MatchWithVenue {
+    return { ...m, venue: this.venuesByMatch.get(m.id) ?? FAKE_VENUE };
+  }
 }
+
+const FAKE_VENUE: Venue = {
+  id: SEED_VENUE_ID,
+  name: "Letná Park",
+  address: "Letenské sady 1, Praha 7",
+  lat: 50.0976,
+  lng: 14.4187,
+  googleMapsUrl: null,
+  surface: ["grass" as Surface],
+  coverId: "cover-default",
+  active: true,
+};
 
 // ---------------------------------------------------------------------------
 // JoinRequestRepository
@@ -244,6 +298,14 @@ export class FakeJoinRequestRepository implements JoinRequestRepository {
     }
     return out;
   }
+
+  async listForUser(userId: UserId): Promise<readonly JoinRequest[]> {
+    const out: JoinRequest[] = [];
+    for (const row of this.rows.values()) {
+      if (row.userId === userId) out.push(row);
+    }
+    return out;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -252,6 +314,10 @@ export class FakeJoinRequestRepository implements JoinRequestRepository {
 
 export class FakeWatchRepository implements WatchRepository {
   public deleted: Array<{ matchId: MatchId; userId: UserId }> = [];
+  /** Tracks bulk delete-all calls for notify-watching tests. */
+  public bulkDeleted: Array<{ matchId: MatchId; count: number }> = [];
+  /** Tracks new INSERTs (idempotent-existing branch excluded). */
+  public inserted: Array<{ matchId: MatchId; userId: UserId }> = [];
   private rows = new Set<string>();
 
   /** Test helper — seed a watch row. */
@@ -282,6 +348,48 @@ export class FakeWatchRepository implements WatchRepository {
     userId: UserId,
   ): Promise<boolean> {
     return this.rows.has(`${matchId}::${userId}`);
+  }
+
+  async upsertForUserAndMatch(
+    matchId: MatchId,
+    userId: UserId,
+  ): Promise<UpsertWatchOutcome> {
+    const key = `${matchId}::${userId}`;
+    if (this.rows.has(key)) return "existed";
+    this.rows.add(key);
+    this.inserted.push({ matchId, userId });
+    return "inserted";
+  }
+
+  async listForMatch(matchId: MatchId): Promise<readonly UserId[]> {
+    const out: UserId[] = [];
+    const prefix = `${matchId}::`;
+    for (const key of this.rows) {
+      if (key.startsWith(prefix)) out.push(key.slice(prefix.length) as UserId);
+    }
+    return out;
+  }
+
+  async deleteAllForMatch(matchId: MatchId): Promise<number> {
+    const prefix = `${matchId}::`;
+    let count = 0;
+    for (const key of Array.from(this.rows)) {
+      if (key.startsWith(prefix)) {
+        this.rows.delete(key);
+        count++;
+      }
+    }
+    this.bulkDeleted.push({ matchId, count });
+    return count;
+  }
+
+  async listMatchIdsForUser(userId: UserId): Promise<readonly MatchId[]> {
+    const suffix = `::${userId}`;
+    const out: MatchId[] = [];
+    for (const key of this.rows) {
+      if (key.endsWith(suffix)) out.push(key.slice(0, -suffix.length) as MatchId);
+    }
+    return out;
   }
 }
 
@@ -403,5 +511,9 @@ export class FakeUserRepository implements UserRepository {
       if (u) result.push(u);
     }
     return result;
+  }
+
+  async updateProfile(): Promise<User> {
+    throw new Error("updateProfile not used in match_lifecycle tests");
   }
 }

@@ -51,6 +51,14 @@ class FakeMatchRepository implements MatchRepository {
   async findById(): Promise<null> {
     return null;
   }
+
+  async findCaptainMatches(): Promise<readonly never[]> {
+    return [];
+  }
+
+  async findByIds(): Promise<readonly never[]> {
+    return [];
+  }
 }
 
 class FakeVenueRepository implements VenueRepository {
