@@ -45,6 +45,10 @@ class FakeUserRepository implements UserRepository {
   async findByIds(): Promise<readonly User[]> {
     throw new Error("findByIds() must not be called from requireAuthCore");
   }
+
+  async updateProfile(): Promise<User> {
+    throw new Error("updateProfile() must not be called from requireAuthCore");
+  }
 }
 
 function makeUser(overrides: Partial<User> = {}): User {

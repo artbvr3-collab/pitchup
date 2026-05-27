@@ -61,6 +61,10 @@ class FakeUserRepository implements UserRepository {
     // Unused in the onboarding service path. Tests that need it can override.
     return [];
   }
+
+  async updateProfile(): Promise<User> {
+    throw new Error("updateProfile() must not be called from onboarding flow");
+  }
 }
 
 function makeUser(overrides: Partial<User> = {}): User {

@@ -14,11 +14,16 @@
  */
 import { CompleteOnboardingService } from "./application/complete-onboarding-service";
 import { requireAuthCore, type AuthenticatedUser } from "./application/require-auth";
+import { UpdateProfileService } from "./application/update-profile-service";
 import { asGoogleSub } from "./domain/user";
 import { auth } from "./infrastructure/auth";
 import { userRepository } from "./infrastructure/repositories";
 
 export const completeOnboardingService = new CompleteOnboardingService(userRepository);
+export const updateProfileService = new UpdateProfileService(userRepository);
+
+/** Layer 6 — surfaced for /me to render the read-only avatar + email. */
+export { userRepository };
 
 export function requireAuth(): Promise<AuthenticatedUser> {
   return requireAuthCore(auth, userRepository);

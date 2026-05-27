@@ -21,6 +21,19 @@ export interface NewUserInput {
   readonly avatarUrl: string;
 }
 
+/**
+ * Layer 6 — fields the user can edit on `/me → Edit profile`. All optional;
+ * `undefined` means "don't change". `contactInfo` can be set to `null`
+ * (explicit clear) but must be a non-empty string after trim if a value is
+ * supplied (callers do the trim before passing). `name` cannot be cleared —
+ * it's mandatory at the schema level.
+ */
+export interface UpdateProfileInput {
+  readonly name?: string;
+  readonly contactInfo?: string | null;
+  readonly emailNotifications?: boolean;
+}
+
 export interface UserRepository {
   findByGoogleSub(googleSub: GoogleSub): Promise<User | null>;
   create(input: NewUserInput): Promise<User>;
@@ -35,4 +48,16 @@ export interface UserRepository {
    * render-time").
    */
   findByIds(ids: readonly UserId[]): Promise<readonly User[]>;
+
+  /**
+   * Layer 6 — partial update of the editable profile fields (name +
+   * contactInfo + emailNotifications). Returns the updated row. Throws if
+   * the user doesn't exist (caller already verified via `requireAuth`, so
+   * not-found here is a programmer error — surfaced as a 500 by the route).
+   *
+   * NOT a place for advisory locks — the User aggregate has no concurrent
+   * mutators (profile edits are user-initiated, single-tab). Last-write-
+   * wins is acceptable.
+   */
+  updateProfile(userId: UserId, input: UpdateProfileInput): Promise<User>;
 }

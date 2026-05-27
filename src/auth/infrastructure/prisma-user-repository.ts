@@ -64,6 +64,31 @@ export class PrismaUserRepository implements UserRepository {
     });
     return rows.map(mapToDomain);
   }
+
+  async updateProfile(
+    userId: UserId,
+    input: {
+      name?: string;
+      contactInfo?: string | null;
+      emailNotifications?: boolean;
+    },
+  ): Promise<User> {
+    const data: {
+      name?: string;
+      contactInfo?: string | null;
+      emailNotifications?: boolean;
+    } = {};
+    if (input.name !== undefined) data.name = input.name;
+    if (input.contactInfo !== undefined) data.contactInfo = input.contactInfo;
+    if (input.emailNotifications !== undefined) {
+      data.emailNotifications = input.emailNotifications;
+    }
+    const row = await this.prisma.user.update({
+      where: { id: userId },
+      data,
+    });
+    return mapToDomain(row);
+  }
 }
 
 function mapToDomain(row: PrismaUser): User {
