@@ -136,6 +136,7 @@ export class MatchStateService {
       lineup: {
         captain: toWireAuthorRequired(match.captainId, usersById),
         accepted: accepted.map((r) => toWirePlayer(r, usersById)),
+        // pending stays Layer 4 — request_id was already on pending.
         pending: pending.map((r) => toWirePending(r, usersById)),
         crew: [...match.captainCrew],
         watching_count: watchingCount,
@@ -205,6 +206,11 @@ function toWirePlayer(
   byId: Map<UserId, User>,
 ): MatchStateLineupPlayer {
   return {
+    // Accepted players carry their JoinRequest id so the captain UI can
+    // address Kick by id (Layer 6.5). Captain row's player entry, when
+    // ever needed, would use `null` — currently the captain is surfaced as
+    // its own `lineup.captain` field, not in `accepted[]`.
+    request_id: request.id,
     user: toWireAuthorRequired(request.userId, byId),
     guest_count: request.guestCount,
   };

@@ -52,7 +52,9 @@ import type {
   FindDiscoverPageOptions,
   FindDiscoverPageResult,
   MatchRepository,
+  UpdateMatchPatch,
 } from "@/src/match_lifecycle/domain/match-repository";
+import type { VenueRepository } from "@/src/match_lifecycle/domain/venue-repository";
 import {
   asVenueId,
   type Surface,
@@ -162,6 +164,51 @@ export class FakeMatchRepository implements MatchRepository {
     return out;
   }
 
+  async update(
+    id: MatchId,
+    patch: UpdateMatchPatch,
+  ): Promise<Date> {
+    const existing = this.matches.get(id);
+    if (!existing) throw new Error(`FakeMatchRepository.update: ${id} missing`);
+    const next: Match = {
+      ...existing,
+      ...(patch.description !== undefined
+        ? { description: patch.description }
+        : {}),
+      ...(patch.totalSpots !== undefined
+        ? { totalSpots: patch.totalSpots }
+        : {}),
+      ...(patch.captainCrew !== undefined
+        ? { captainCrew: [...patch.captainCrew] }
+        : {}),
+      ...(patch.surface !== undefined ? { surface: patch.surface } : {}),
+      ...(patch.studsAllowed !== undefined
+        ? { studsAllowed: patch.studsAllowed }
+        : {}),
+      ...(patch.price !== undefined ? { price: patch.price } : {}),
+      ...(patch.fieldBooked !== undefined
+        ? { fieldBooked: patch.fieldBooked }
+        : {}),
+      updatedAt: new Date(existing.updatedAt.getTime() + 1),
+    };
+    this.matches.set(id, next);
+    return next.updatedAt;
+  }
+
+  async cancel(
+    id: MatchId,
+    cancelReason: string,
+  ): Promise<void> {
+    const existing = this.matches.get(id);
+    if (!existing) throw new Error(`FakeMatchRepository.cancel: ${id} missing`);
+    this.matches.set(id, {
+      ...existing,
+      cancelledAt: new Date("2026-05-28T12:00:00Z"),
+      cancelReason,
+      updatedAt: new Date(existing.updatedAt.getTime() + 1),
+    });
+  }
+
   private attachVenue(m: Match): MatchWithVenue {
     return { ...m, venue: this.venuesByMatch.get(m.id) ?? FAKE_VENUE };
   }
@@ -178,6 +225,31 @@ const FAKE_VENUE: Venue = {
   coverId: "cover-default",
   active: true,
 };
+
+/**
+ * Fake VenueRepository for Layer 6.5 EditMatchService tests. Mirrors the
+ * single-active-venue setup most tests need; supplement via `put()` to
+ * swap in a multi-surface or inactive variant.
+ */
+export class FakeVenueRepository implements VenueRepository {
+  private venues = new Map<string, Venue>();
+
+  constructor(seedDefault = true) {
+    if (seedDefault) this.put(FAKE_VENUE);
+  }
+
+  put(v: Venue): void {
+    this.venues.set(v.id, v);
+  }
+
+  async listActive(): Promise<readonly Venue[]> {
+    return [...this.venues.values()].filter((v) => v.active);
+  }
+
+  async findById(id: string): Promise<Venue | null> {
+    return this.venues.get(id) ?? null;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // JoinRequestRepository
@@ -305,6 +377,27 @@ export class FakeJoinRequestRepository implements JoinRequestRepository {
       if (row.userId === userId) out.push(row);
     }
     return out;
+  }
+
+  async massRejectPending(
+    matchId: MatchId,
+    autoReason: "match_started" | "match_cancelled",
+  ): Promise<readonly JoinRequest[]> {
+    const flipped: JoinRequest[] = [];
+    for (const [id, row] of this.rows.entries()) {
+      if (row.matchId === matchId && row.status === "pending") {
+        const next: JoinRequest = {
+          ...row,
+          status: "rejected",
+          autoReason,
+          updatedAt: new Date(),
+        };
+        this.rows.set(id, next);
+        this.updates.push({ id, status: "rejected", autoReason });
+        flipped.push(next);
+      }
+    }
+    return flipped;
   }
 }
 

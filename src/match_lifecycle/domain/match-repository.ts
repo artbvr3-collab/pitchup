@@ -102,6 +102,25 @@ export interface CreateMatchPersistenceInput {
   readonly coverId: string;
 }
 
+/**
+ * Layer 6.5 — patch shape for `PATCH /matches/:id` (captain edit). Every
+ * field is optional; `undefined` means "don't touch". Field whitelist is
+ * enforced at the HTTP boundary via a Zod schema — the service receives
+ * only allowed keys (description, totalSpots, captainCrew, surface,
+ * studsAllowed, price, fieldBooked). `description: null` is a deliberate
+ * clear (different from `undefined`); other fields cannot be nulled.
+ * Spec match.md → "/matches/:id/edit" → "What can be changed".
+ */
+export interface UpdateMatchPatch {
+  readonly description?: string | null;
+  readonly totalSpots?: number;
+  readonly captainCrew?: readonly string[];
+  readonly surface?: Surface;
+  readonly studsAllowed?: boolean;
+  readonly price?: number;
+  readonly fieldBooked?: boolean;
+}
+
 export interface MatchRepository {
   findDiscoverPage(
     options: FindDiscoverPageOptions,
@@ -129,4 +148,35 @@ export interface MatchRepository {
    * round-trips. Mirrors the convention from `UserRepository.findByIds`.
    */
   findByIds(ids: readonly MatchId[]): Promise<readonly MatchWithVenue[]>;
+
+  /**
+   * Layer 6.5 — apply a partial update to the editable subset of fields.
+   * Caller (under lock) is responsible for: optimistic-concurrency check
+   * (compare `match.updatedAt` vs payload `updated_at`), capacity check
+   * (`computeSlots(after).filled <= total`), surface→studs force-reset
+   * (already folded into the patch by the service before calling).
+   *
+   * The `@updatedAt` Prisma decorator on `Match.updated_at` auto-bumps the
+   * column on every UPDATE — that is how the optimistic-concurrency check
+   * advances for the next stale payload. Returns the new `updatedAt` so the
+   * service can echo it back to the client (avoids a re-read).
+   */
+  update(
+    id: MatchId,
+    patch: UpdateMatchPatch,
+    tx: TransactionClient,
+  ): Promise<Date>;
+
+  /**
+   * Layer 6.5 — mark the match as Cancelled. Writes `cancelled_at = now()`
+   * and the captain-supplied `cancel_reason` (already NFC-normalized + trim
+   * + length-checked by the service). Idempotency / start-time guards live
+   * in the service (`AlreadyCancelledError` / `MatchAlreadyStartedError`);
+   * this method is unconditional UPDATE.
+   */
+  cancel(
+    id: MatchId,
+    cancelReason: string,
+    tx: TransactionClient,
+  ): Promise<void>;
 }

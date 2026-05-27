@@ -20,8 +20,11 @@ import { chatMessageRepository } from "@/src/chat/infrastructure/repositories";
 
 import { ApproveJoinRequestService } from "./application/approve-join-request-service";
 import { CancelJoinRequestService } from "./application/cancel-join-request-service";
+import { CancelMatchService } from "./application/cancel-match-service";
 import { CreateMatchService } from "./application/create-match-service";
+import { EditMatchService } from "./application/edit-match-service";
 import { JoinMatchService } from "./application/join-match-service";
+import { KickPlayerService } from "./application/kick-player-service";
 import { LeaveMatchService } from "./application/leave-match-service";
 import { ListDiscoverMatchesService } from "./application/list-discover-matches";
 import { ListMyMatchesService } from "./application/list-my-matches-service";
@@ -95,4 +98,23 @@ export const listMyMatchesService = new ListMyMatchesService(
   matchRepository,
   joinRequestRepository,
   watchRepository,
+);
+
+export const kickPlayerService = new KickPlayerService(
+  matchRepository,
+  joinRequestRepository,
+  watchRepository,
+);
+
+export const cancelMatchService = new CancelMatchService(
+  matchRepository,
+  joinRequestRepository,
+  watchRepository,
+);
+
+export const editMatchService = new EditMatchService(
+  matchRepository,
+  joinRequestRepository,
+  watchRepository,
+  venueRepository,
 );

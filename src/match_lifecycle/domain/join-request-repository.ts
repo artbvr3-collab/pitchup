@@ -118,4 +118,21 @@ export interface JoinRequestRepository {
    * service joins them with match rows via `MatchRepository.findByIds`.
    */
   listForUser(userId: UserId): Promise<readonly JoinRequest[]>;
+
+  /**
+   * Layer 6.5 — bulk-update all pending JoinRequests for a match to a
+   * terminal status. Used by `CancelMatchService` (rejected,
+   * auto_reason='match_cancelled') and by the future cron auto-rejector
+   * (rejected, auto_reason='match_started') — same shape, different
+   * `autoReason`. Returns the number of rows flipped (for the response
+   * meta / Layer 7 notification fan-out count).
+   *
+   * Spec match.md → "Per-endpoint checklist" → POST /cancel ("mass-reject
+   * pending") + "Reject / Kick / Leave flows" → pending auto-reject rules.
+   */
+  massRejectPending(
+    matchId: MatchId,
+    autoReason: "match_started" | "match_cancelled",
+    tx: TransactionClient,
+  ): Promise<readonly JoinRequest[]>;
 }

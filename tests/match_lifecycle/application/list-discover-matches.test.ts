@@ -62,6 +62,14 @@ class FakeMatchRepository implements MatchRepository {
   async findByIds(): Promise<readonly never[]> {
     return [];
   }
+
+  async update(): Promise<Date> {
+    throw new Error("update() not used in list-discover tests");
+  }
+
+  async cancel(): Promise<void> {
+    throw new Error("cancel() not used in list-discover tests");
+  }
 }
 
 const NOW = new Date("2026-05-26T10:00:00Z"); // Prague 2026-05-26

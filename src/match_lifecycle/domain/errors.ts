@@ -239,3 +239,81 @@ export class MatchNotFullError extends AppError {
     super("not_full", "Match is not full — no need to watch", 409, meta);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Layer 6.5 — Kick / Cancel-match / Edit-match (captain destructive)
+// Codes mirror docs/spec/pitchup-spec-match.md → "Per-endpoint checklist"
+// (POST /kick, POST /cancel, PATCH /matches/:id) and the "Backend validation
+// errors on edit save" table.
+// ---------------------------------------------------------------------------
+
+/**
+ * `409 already_cancelled` — `POST /matches/:id/cancel` was called on a match
+ * with `cancelled_at IS NOT NULL`. The spec marks this idempotent ("may
+ * return 200"), but we still raise so the handler can distinguish the
+ * cause; the response is shaped as a regular 409 for consistency with the
+ * other captain destructive endpoints. Frontend treats it as success-no-op
+ * and re-renders. Spec match.md → "Per-endpoint checklist" → POST /cancel
+ * + "Idempotency".
+ */
+export class AlreadyCancelledError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super("already_cancelled", "Match is already cancelled", 409, meta);
+  }
+}
+
+/**
+ * `409 match_already_started` — `POST /matches/:id/cancel` was called on a
+ * match whose `start_time <= now()`. Once a match has started it is
+ * considered played and there is no post-start cancel in v1 (spec match.md
+ * §292). The captain sheet hides `[Cancel match]` on non-live statuses; the
+ * 409 covers direct curl and stalled tabs.
+ */
+export class MatchAlreadyStartedError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super(
+      "match_already_started",
+      "Match has already started — cancel is no longer possible",
+      409,
+      meta,
+    );
+  }
+}
+
+/**
+ * `409 concurrent_modification` — `PATCH /matches/:id` was sent with an
+ * `updated_at` value that does not match the row's current `updated_at`
+ * under the lock. Another tab/device edited in parallel. Frontend toast:
+ * `"Match was updated in another tab."` + `window.location.reload()` to
+ * refresh the form with the latest snapshot. Spec match.md → "Backend
+ * validation errors on edit save".
+ */
+export class ConcurrentModificationError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super(
+      "concurrent_modification",
+      "Match was updated in another tab",
+      409,
+      meta,
+    );
+  }
+}
+
+/**
+ * `409 capacity_below_filled` — `PATCH /matches/:id` was sent with a patch
+ * that would make `computeSlots(after).filled > total_spots`. Two paths:
+ * `total_spots ↓` below current filled, or `captain_crew +` past the
+ * remaining free slots. Frontend toast: `"Can't lower below current
+ * players ({filled})."` Spec match.md → "Backend validation errors on
+ * edit save" + "Race scenarios" → "Approve + Edit(total↓ or crew+)".
+ */
+export class CapacityBelowFilledError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super(
+      "capacity_below_filled",
+      "Capacity would fall below the current player count",
+      409,
+      meta,
+    );
+  }
+}

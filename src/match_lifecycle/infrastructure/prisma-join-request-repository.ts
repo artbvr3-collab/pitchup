@@ -155,6 +155,32 @@ export class PrismaJoinRequestRepository implements JoinRequestRepository {
     });
     return rows.map(toDomain);
   }
+
+  async massRejectPending(
+    matchId: MatchId,
+    autoReason: "match_started" | "match_cancelled",
+    tx: TransactionClient,
+  ): Promise<readonly JoinRequest[]> {
+    // Snapshot the pending rows first so the caller (CancelMatchService /
+    // future cron) can fan-out Layer 7 notifications addressed to each
+    // formerly-pending user. We don't rely on `updateMany().count` because
+    // the user-id list is needed downstream.
+    const pending = await tx.joinRequest.findMany({
+      where: { matchId, status: "pending" },
+    });
+    if (pending.length === 0) return [];
+
+    await tx.joinRequest.updateMany({
+      where: { matchId, status: "pending" },
+      data: { status: "rejected", autoReason },
+    });
+
+    // Return the pre-image rows with the new status materialised — caller
+    // only needs ids + userIds, but the full row keeps the helper composable.
+    return pending.map((row) =>
+      toDomain({ ...row, status: "rejected", autoReason }),
+    );
+  }
 }
 
 function toDomain(row: JoinRequestRow): JoinRequest {

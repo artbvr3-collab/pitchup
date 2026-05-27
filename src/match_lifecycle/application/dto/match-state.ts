@@ -70,6 +70,13 @@ export interface MatchStateMessageAuthor {
 
 /** One accepted player on the lineup (captain or accepted JoinRequest). */
 export interface MatchStateLineupPlayer {
+  /**
+   * JoinRequest id — captain uses it to address Kick (Layer 6.5). For the
+   * captain row itself the value is `null` (no JoinRequest exists for the
+   * captain — they own the match). Race-safe by id rather than userId:
+   * kicking by userId would target a stale row after a re-apply.
+   */
+  readonly request_id: string | null;
   readonly user: MatchStateMessageAuthor;
   /** 0..4 — anonymous +N companions occupying adjacent slots. */
   readonly guest_count: number;

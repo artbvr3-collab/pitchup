@@ -36,6 +36,7 @@ import type {
   FindDiscoverPageOptions,
   FindDiscoverPageResult,
   MatchRepository,
+  UpdateMatchPatch,
 } from "../domain/match-repository";
 import { asVenueId, type Surface, type Venue } from "../domain/venue";
 
@@ -239,6 +240,49 @@ export class PrismaMatchRepository implements MatchRepository {
       include: { venue: true },
     });
     return rows.map(matchWithVenueRowToDomain);
+  }
+
+  async update(
+    id: MatchId,
+    patch: UpdateMatchPatch,
+    tx: TransactionClient,
+  ): Promise<Date> {
+    // Only include keys explicitly present in the patch. `undefined` means
+    // "don't touch"; Prisma also treats `undefined` as no-op but we guard
+    // explicitly so the shape of `data` matches the spec's whitelist intent.
+    const data: Record<string, unknown> = {};
+    if (patch.description !== undefined) data.description = patch.description;
+    if (patch.totalSpots !== undefined) data.totalSpots = patch.totalSpots;
+    if (patch.captainCrew !== undefined) {
+      data.captainCrew = [...patch.captainCrew];
+    }
+    if (patch.surface !== undefined) data.surface = patch.surface;
+    if (patch.studsAllowed !== undefined) {
+      data.studsAllowed = patch.studsAllowed;
+    }
+    if (patch.price !== undefined) data.price = patch.price;
+    if (patch.fieldBooked !== undefined) data.fieldBooked = patch.fieldBooked;
+
+    const row = await tx.match.update({
+      where: { id },
+      data,
+      select: { updatedAt: true },
+    });
+    return row.updatedAt;
+  }
+
+  async cancel(
+    id: MatchId,
+    cancelReason: string,
+    tx: TransactionClient,
+  ): Promise<void> {
+    await tx.match.update({
+      where: { id },
+      data: {
+        cancelledAt: new Date(),
+        cancelReason,
+      },
+    });
   }
 }
 
