@@ -2,17 +2,27 @@
  * MODULE: app.matches.id.lineup-tab
  * PURPOSE: Lineup tab — accepted players (captain + real + crew stubs) +
  *          pending list. Captain sees inline `[✓]` `[✗]` buttons on
- *          pending entries (calls Layer 4 endpoints /approve, /reject).
+ *          pending entries (Layer 4 /approve, /reject) and a `[Kick]`
+ *          button next to each accepted non-self player (Layer 6.5
+ *          /kick), guarded by a window.confirm modal.
  *          Layer 6+: shuffle teams (deferred).
  * LAYER: interfaces (client)
  * INVARIANTS:
  *   - Crew stubs render with 50% opacity + silhouette avatar + tooltip
  *     "Not on app yet". Spec §178.
  *   - Approve `[✓]` disabled when `1 + guest_count > free` per spec §179.
- *   - Reject confirmation modal omitted in this layer; UX follow-up.
- *     Approve fires immediately (spec §186).
+ *   - Kick is captain-only and only renders on accepted real players —
+ *     never on the captain row, never on crew stubs (stubs are not users).
+ *     Confirm via `window.confirm("Remove [name] from match?")` — same
+ *     pattern as chat delete. 404 from the backend is treated as
+ *     success-no-op (spec "Idempotency": player may have left between
+ *     captain's click and the kick).
+ *   - The kick endpoint takes a `request_id`, NOT a userId — passing the
+ *     accepted JR's `request_id` mirrors Approve / Reject; race-safe
+ *     against re-applies (kicking by userId would target a stale row).
  * RELATED DOCS:
- *   - docs/spec/pitchup-spec-match.md → "Tab Lineup", "Approve flow"
+ *   - docs/spec/pitchup-spec-match.md → "Tab Lineup", "Approve flow",
+ *     "Reject / Kick / Leave flows", "Per-endpoint checklist" → POST /kick
  */
 "use client";
 
@@ -57,6 +67,14 @@ export function LineupTab(props: LineupTabProps) {
               key={player.user.id}
               user={player.user}
               guestCount={player.guest_count}
+              kick={
+                props.viewerRole === "captain" && player.request_id !== null
+                  ? {
+                      requestId: player.request_id,
+                      matchId: props.matchId,
+                    }
+                  : null
+              }
             />
           ))}
           {props.crew.map((name) => (
@@ -97,10 +115,13 @@ function PlayerRow({
   user,
   badge,
   guestCount,
+  kick,
 }: {
   user: MatchStateMessageAuthor;
   badge?: string;
   guestCount?: number;
+  /** When non-null, renders the captain-only [Kick] button on the right. */
+  kick?: { requestId: string; matchId: string } | null;
 }) {
   const isRemoved = user.banned;
   return (
@@ -125,8 +146,71 @@ function PlayerRow({
             {badge}
           </span>
         ) : null}
+        {kick ? (
+          <KickButton
+            requestId={kick.requestId}
+            matchId={kick.matchId}
+            displayName={isRemoved ? "this player" : shortName(user.name)}
+          />
+        ) : null}
       </div>
     </Card>
+  );
+}
+
+function KickButton({
+  requestId,
+  matchId,
+  displayName,
+}: {
+  requestId: string;
+  matchId: string;
+  displayName: string;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+
+  const onClick = async () => {
+    if (busy) return;
+    // Native confirm; spec match.md "Kick accepted goes through a confirm
+    // modal in captain sheet / Lineup". A bespoke modal can land later if
+    // mis-tap rate is bad — `confirm()` is the MVP per match-page Delete
+    // pattern (spec §369).
+    if (!window.confirm(`Remove ${displayName} from match?`)) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/matches/${matchId}/kick`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ request_id: requestId }),
+      });
+      if (!res.ok && res.status !== 404) {
+        const body = (await res.json().catch(() => null)) as {
+          code?: string;
+        } | null;
+        alert(`Couldn't remove: ${body?.code ?? res.status}`);
+        return;
+      }
+      // 404 (player already left between captain's click and kick) is
+      // success-no-op per spec "Idempotency". Either way, refresh.
+      router.refresh();
+    } catch {
+      alert("Couldn't reach the server. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      title="Remove player"
+      className="rounded-full bg-destructive-bg px-2 py-1 text-[11px] font-semibold text-destructive hover:opacity-80 disabled:opacity-50"
+    >
+      Kick
+    </button>
   );
 }
 
