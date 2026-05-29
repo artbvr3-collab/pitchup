@@ -23,10 +23,10 @@
  *   - Section Past is initial-render only here; the client island
  *     `PastListWithShowMore` owns subsequent pagination via
  *     `GET /api/my-matches/past?cursor=`.
- *   - Live updates via global poll (`GET /api/updates/state`) are Layer 7.
- *     For Layer 6 the page refreshes on navigation only — acceptable per
- *     spec personal.md "Cards in Section Upcoming may show a stale status
- *     until reload — acceptable".
+ *   - Live updates: Layer 7's SignedInChrome polls `GET /api/updates/state`
+ *     and calls `router.refresh()` when `matches_changed` is non-empty, which
+ *     re-runs this RSC. Watching-card staleness remains acceptable per spec
+ *     personal.md (watching transitions are excluded from `matches_changed`).
  * RELATED DOCS:
  *   - docs/spec/pitchup-spec-personal.md → "/my-matches"
  *   - docs/ROADMAP.md → Layer 6

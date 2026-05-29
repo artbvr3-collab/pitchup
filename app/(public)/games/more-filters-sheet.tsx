@@ -32,6 +32,7 @@ import * as React from "react";
 
 import { Button } from "@/src/ui/components/button";
 import { Chip } from "@/src/ui/components/chip";
+import { Sheet } from "@/src/ui/components/sheet";
 import { cn } from "@/src/ui/lib/cn";
 
 import {
@@ -116,24 +117,6 @@ export function MoreFiltersSheet(props: MoreFiltersSheetProps) {
     if (props.open) setDraft(props.applied);
   }, [props.open, props.applied]);
 
-  // Body scroll lock + Escape-to-close.
-  const { open, onClose } = props;
-  React.useEffect(() => {
-    if (!open) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open, onClose]);
-
-  if (!props.open) return null;
-
   const isDirty = !statesEqual(draft, props.applied);
 
   const apply = (): void => {
@@ -161,18 +144,7 @@ export function MoreFiltersSheet(props: MoreFiltersSheetProps) {
   const reset = (): void => setDraft(EMPTY_STATE);
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col justify-end">
-      <button
-        type="button"
-        aria-label="Close filters"
-        className="absolute inset-0 bg-black/40"
-        onClick={props.onClose}
-      />
-      <div
-        role="dialog"
-        aria-label="Game filters"
-        className="relative flex max-h-[85vh] flex-col rounded-t-[20px] bg-bg-base shadow-card"
-      >
+    <Sheet open={props.open} onClose={props.onClose} ariaLabel="Game filters">
         <header className="flex items-center justify-between border-b border-border px-4 py-3">
           <button
             type="button"
@@ -242,8 +214,7 @@ export function MoreFiltersSheet(props: MoreFiltersSheetProps) {
             </Button>
           </div>
         </footer>
-      </div>
-    </div>
+    </Sheet>
   );
 }
 

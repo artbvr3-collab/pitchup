@@ -10,6 +10,10 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
+import { optionalAuth } from "@/src/auth/composition";
+
+import { SignedInChrome } from "./signed-in-chrome";
+
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
@@ -27,11 +31,24 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  // Render the signed-in chrome (TopBar 🔔 + Updates panel + global poll) only
+  // when there's a valid, onboarded session. Guests / not-yet-onboarded
+  // (/login, /welcome) get `null` → no chrome. The chrome itself further gates
+  // which routes show the bar (see SignedInChrome).
+  const session = await optionalAuth();
+
   return (
     <html lang="en" className={inter.variable}>
       <body className="bg-bg-surface font-sans text-[15px] text-text-primary">
-        <div className="mx-auto min-h-dvh max-w-screen bg-bg-base">{children}</div>
+        <div className="mx-auto min-h-dvh max-w-screen bg-bg-base">
+          {session && <SignedInChrome />}
+          {children}
+        </div>
       </body>
     </html>
   );

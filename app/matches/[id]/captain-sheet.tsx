@@ -10,10 +10,9 @@
  * LAYER: interfaces (client)
  * DEPENDENCIES: src/ui/components/button, src/ui/lib/cn
  * INVARIANTS:
- *   - Hand-rolled bottom-sheet pattern (same as Discover MoreFiltersSheet —
- *     backdrop click + Esc close + body-scroll lock). The shared Sheet
- *     primitive extraction is still on the AGENTS backlog; Layer 6.5
- *     doesn't ship it yet.
+ *   - Uses the shared `Sheet` primitive (src/ui/components/sheet) for the
+ *     backdrop / Esc / scroll-lock mechanics (extracted in Layer 7). The
+ *     inner content (drag handle, menu vs cancel-confirm mode) is owned here.
  *   - Approve `[✓]` disabled when `1 + guest_count > free` (spec §179).
  *   - The cancel modal stays inside this sheet (not a third nested level)
  *     — spec match.md "Captain sheet" → cancel UX. Confirm button is
@@ -34,7 +33,7 @@
  */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import type {
@@ -42,6 +41,7 @@ import type {
   MatchStateLineupPending,
 } from "@/src/match_lifecycle/application/dto/match-state";
 import { Button } from "@/src/ui/components/button";
+import { Sheet } from "@/src/ui/components/sheet";
 import { cn } from "@/src/ui/lib/cn";
 
 export interface CaptainSheetProps {
@@ -59,30 +59,13 @@ export function CaptainSheet(props: CaptainSheetProps) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("menu");
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") props.onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [props]);
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      role="dialog"
-      aria-modal="true"
+    <Sheet
+      open
+      onClose={props.onClose}
+      ariaLabel={mode === "cancel-confirm" ? "Cancel match" : "Manage match"}
     >
-      <div
-        className="absolute inset-0 bg-black/40"
-        onClick={props.onClose}
-        aria-hidden="true"
-      />
-      <div className="relative z-10 mx-auto flex w-full max-w-[375px] flex-col gap-3 rounded-t-card bg-bg-base p-4 shadow-card">
+      <div className="flex flex-col gap-3 overflow-y-auto p-4">
         <div className="mx-auto h-1 w-12 rounded-full bg-border-strong" />
         <div className="flex items-center justify-between">
           <h2 className="text-base font-bold">
@@ -124,7 +107,7 @@ export function CaptainSheet(props: CaptainSheetProps) {
           />
         )}
       </div>
-    </div>
+    </Sheet>
   );
 }
 
