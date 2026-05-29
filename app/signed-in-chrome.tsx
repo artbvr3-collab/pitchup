@@ -73,11 +73,15 @@ export function SignedInChrome() {
       if (payload.matches_changed.length > 0) {
         router.refresh();
       }
+      // Advance to the SERVER's timestamp (not client `new Date()`) so the
+      // cursor shares the DB clock — avoids skipping round-trip rows and the
+      // skew re-poll loop. Only on null-bootstrap or content, so idle polls
+      // keep the URL stable and usePolling doesn't restart into a tight loop.
       setSince((prev) =>
         prev === null ||
         payload.new_notifications.length > 0 ||
         payload.matches_changed.length > 0
-          ? new Date().toISOString()
+          ? payload.server_time
           : prev,
       );
     },

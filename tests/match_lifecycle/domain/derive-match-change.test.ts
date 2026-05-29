@@ -182,6 +182,19 @@ const ROWS: readonly Row[] = [
     }),
     expected: { matchId: MATCH_ID, action: "accepted", myStatus: "accepted" },
   },
+  {
+    name: "accept+cancel same window — cancel dominates the accept transition",
+    input: input({
+      joinRequest: jr("accepted", AFTER),
+      matchUpdatedAt: AFTER,
+      matchCancelledAt: AFTER,
+    }),
+    expected: {
+      matchId: MATCH_ID,
+      action: "match_cancelled",
+      myStatus: "cancelled",
+    },
+  },
 ];
 
 describe("deriveMatchChange", () => {

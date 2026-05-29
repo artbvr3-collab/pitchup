@@ -183,5 +183,17 @@ describe("notifyWatching", () => {
     expect(result.watchRowsDeleted).toBe(0);
     // Bulk delete still called (idempotent — zero rows is normal).
     expect(watchRepo.bulkDeleted).toEqual([{ matchId: SEED_MATCH_ID, count: 0 }]);
+    // Leave-style (triggeredByCaptain: false): captain STILL gets the push even
+    // with zero watchers; no watcher rows exist.
+    const captainRow = notificationRepo.inserted.find(
+      (n) => n.body === NOTIFICATION_BODIES.spotOpenedCaptain,
+    );
+    expect(captainRow).toBeDefined();
+    expect(captainRow?.userId).toBe(SEED_CAPTAIN_ID);
+    expect(
+      notificationRepo.inserted.filter(
+        (n) => n.body === NOTIFICATION_BODIES.spotOpenedWatcher,
+      ),
+    ).toHaveLength(0);
   });
 });

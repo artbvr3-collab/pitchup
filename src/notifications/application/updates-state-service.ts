@@ -80,6 +80,17 @@ export interface UpdatesStateResponse {
   readonly has_unread_notifications: boolean;
   readonly new_notifications: readonly UpdatesStateNotification[];
   readonly matches_changed: readonly UpdatesStateMatchChanged[];
+  /**
+   * The server's clock at the moment this response was assembled (captured
+   * BEFORE the reads). The client MUST use this as the next `since` — NOT its
+   * own `new Date()`. Using a server-side cursor keeps `since` in the same
+   * clock as `created_at`/`updated_at`, so a client clock that drifts ahead of
+   * the DB can neither (a) skip a notification created during the round-trip
+   * nor (b) re-deliver the same row on the catch-up re-poll (which would
+   * tight-loop router.refresh). Captured before the reads → at worst a row
+   * created mid-read is delivered twice (benign; deduped by id), never skipped.
+   */
+  readonly server_time: string;
 }
 
 export class UpdatesStateService {
@@ -93,6 +104,9 @@ export class UpdatesStateService {
   async execute(input: UpdatesStateInput): Promise<UpdatesStateResponse> {
     const userId = asUserId(input.userId);
     const { since } = input;
+    // Capture the cursor BEFORE the reads (safe direction — mid-read rows get
+    // re-delivered, never skipped). Returned as `server_time` for the client.
+    const serverTime = new Date();
 
     const [hasUnread, recent, matchesChanged] = await Promise.all([
       this.notificationRepository.hasUnread(userId),
@@ -114,6 +128,7 @@ export class UpdatesStateService {
         my_status: c.myStatus,
         action: c.action,
       })),
+      server_time: serverTime.toISOString(),
     };
   }
 

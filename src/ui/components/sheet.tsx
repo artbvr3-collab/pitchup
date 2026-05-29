@@ -21,7 +21,7 @@
  */
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { cn } from "@/src/ui/lib/cn";
 
@@ -42,19 +42,26 @@ export function Sheet({
   ariaLabel,
   className,
 }: SheetProps) {
+  // Keep onClose in a ref so an unstable (inline-arrow) callback from the
+  // caller doesn't re-run the scroll-lock/Esc effect on every parent render
+  // (callers poll on a 15s timer and re-render this tree). Effect deps stay
+  // `[open]`; the Esc handler always reads the latest onClose.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (!open) return;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
     };
     document.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = prevOverflow;
       document.removeEventListener("keydown", onKey);
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

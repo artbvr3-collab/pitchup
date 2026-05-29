@@ -104,7 +104,14 @@ export function deriveMatchChange(input: MatchChangeInput): MatchChange | null {
       case "pending":
         return { matchId, action: "requested", myStatus };
       case "accepted":
-        return { matchId, action: "accepted", myStatus };
+        // Approve+Cancel same-window race: if the match is now cancelled, the
+        // cancel dominates — the card belongs in Past as "Match cancelled", not
+        // an "accepted" animation. `myStatus` is already `cancelled` here
+        // (deriveMyStatus hoists accepted + cancelledAt → cancelled), so we only
+        // need to correct the action.
+        return matchCancelledAt !== null
+          ? { matchId, action: "match_cancelled", myStatus }
+          : { matchId, action: "accepted", myStatus };
       case "rejected":
         return {
           matchId,
