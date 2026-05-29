@@ -214,6 +214,28 @@ export class FakeMatchRepository implements MatchRepository {
     });
   }
 
+  async findUpcomingByCaptain(
+    userId: UserId,
+    now: Date,
+  ): Promise<readonly Match[]> {
+    const out: Match[] = [];
+    for (const m of this.matches.values()) {
+      if (
+        m.captainId === userId &&
+        m.cancelledAt === null &&
+        m.startTime.getTime() > now.getTime()
+      ) {
+        out.push(m);
+      }
+    }
+    out.sort((a, b) =>
+      a.startTime.getTime() === b.startTime.getTime()
+        ? a.id.localeCompare(b.id)
+        : a.startTime.getTime() - b.startTime.getTime(),
+    );
+    return out;
+  }
+
   private attachVenue(m: Match): MatchWithVenue {
     return { ...m, venue: this.venuesByMatch.get(m.id) ?? FAKE_VENUE };
   }
@@ -403,6 +425,17 @@ export class FakeJoinRequestRepository implements JoinRequestRepository {
       }
     }
     return flipped;
+  }
+
+  async countUpcomingAccepted(userId: UserId, _now: Date): Promise<number> {
+    // The fake intentionally ignores `_now` — tests that need a clock-aware
+    // count seed only accepted rows for upcoming matches (the relation-side
+    // predicate is exercised by the Prisma adapter, not here).
+    let n = 0;
+    for (const row of this.rows.values()) {
+      if (row.userId === userId && row.status === "accepted") n++;
+    }
+    return n;
   }
 }
 
@@ -644,7 +677,25 @@ export class FakeUserRepository implements UserRepository {
     return result;
   }
 
+  async findById(id: UserId): Promise<User | null> {
+    return this.users.get(id) ?? null;
+  }
+
   async updateProfile(): Promise<User> {
     throw new Error("updateProfile not used in match_lifecycle tests");
+  }
+
+  async countActiveAdmins(excludeUserId?: UserId): Promise<number> {
+    let n = 0;
+    for (const u of this.users.values()) {
+      if (excludeUserId !== undefined && u.id === excludeUserId) continue;
+      if (u.isAdmin && !u.banned && u.deletedAt === null) n++;
+    }
+    return n;
+  }
+
+  async markDeleted(id: UserId): Promise<void> {
+    const u = this.users.get(id);
+    if (u) this.users.set(id, { ...u, deletedAt: new Date() });
   }
 }

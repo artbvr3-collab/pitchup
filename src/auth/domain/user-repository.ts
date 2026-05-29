@@ -50,6 +50,18 @@ export interface UserRepository {
   findByIds(ids: readonly UserId[]): Promise<readonly User[]>;
 
   /**
+   * Layer 7.5 — single lookup that DOES include soft-deleted / banned rows.
+   * Used by `/users/:id` to render the unified "This user is no longer on
+   * PITCHUP." state without leaking ban-vs-delete to outside observers
+   * (spec global.md "Ban / account deletion" — privacy). The route handler
+   * checks `user.banned || user.deletedAt !== null` itself and renders the
+   * sentinel; the repository does not filter.
+   *
+   * Returns `null` only if the row truly doesn't exist (404 branch).
+   */
+  findById(id: UserId): Promise<User | null>;
+
+  /**
    * Layer 6 — partial update of the editable profile fields (name +
    * contactInfo + emailNotifications). Returns the updated row. Throws if
    * the user doesn't exist (caller already verified via `requireAuth`, so
@@ -60,4 +72,36 @@ export interface UserRepository {
    * wins is acceptable.
    */
   updateProfile(userId: UserId, input: UpdateProfileInput): Promise<User>;
+
+  /**
+   * Layer 7.5 — count of users that currently hold admin rights.
+   *
+   * Predicate: `is_admin = true AND banned = false AND deleted_at IS NULL`.
+   * The spec personal.md last-admin guard reads `count(is_admin=true,
+   * banned=false) === 1`; we also exclude `deleted_at IS NULL` because a
+   * soft-deleted admin cannot act (their sessions are invalidated by
+   * `requireAuth` and they cannot re-sign-in). Including them in the count
+   * would let the last live admin block themselves from self-delete forever.
+   *
+   * `excludeUserId` is the "would there still be one left if I removed
+   * myself?" probe — DeleteAccountService passes the caller's id so the
+   * count answers "OTHER active admins". For Layer 9 admin demote/ban from
+   * a different actor, callers pass the target's id.
+   */
+  countActiveAdmins(excludeUserId?: UserId): Promise<number>;
+
+  /**
+   * Layer 7.5 — mark the account as soft-deleted (`deleted_at = now()`).
+   * Idempotent: a second call on an already-deleted row is a no-op (re-set
+   * to the same value is harmless; the column-based session invalidation
+   * already kicked in on the first write). Called LAST in
+   * `DeleteAccountService.execute` so a partial-cascade failure leaves the
+   * account undeleted and the user can retry.
+   *
+   * No advisory lock — the User aggregate has no concurrent mutators per
+   * the Layer 6 convention. The cascade-cancel of upcoming captain matches
+   * runs under per-match advisory locks BEFORE this call, in its own tx
+   * per match.
+   */
+  markDeleted(userId: UserId): Promise<void>;
 }

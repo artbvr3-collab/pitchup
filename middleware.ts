@@ -27,8 +27,12 @@ export const runtime = "nodejs";
 // Pages a guest may open without a session AND a signed-in user may revisit.
 // `/games` is the public Discover feed — accessible to guests per spec
 // (docs/spec/pitchup-spec-discovery.md → "/games").
+// `/users/:id` is the public player profile (Layer 7.5) — accessible to
+// guests too (spec personal.md "/users/:id"). It also serves a unified
+// "no longer on PITCHUP" page for banned / deleted / 404 — that's a
+// public render, not a redirect.
 const PUBLIC_PATHS: readonly string[] = ["/", "/login", "/design", "/games"];
-const PUBLIC_PREFIXES: readonly string[] = ["/legal/", "/design/"];
+const PUBLIC_PREFIXES: readonly string[] = ["/legal/", "/design/", "/users/"];
 
 // Paths a signed-in user *without* a DB row may access without being bounced
 // to `/welcome` (spec: "Onboarding guard" → allowlist).

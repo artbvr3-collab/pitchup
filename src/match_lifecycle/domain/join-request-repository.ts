@@ -135,4 +135,17 @@ export interface JoinRequestRepository {
     autoReason: "match_started" | "match_cancelled",
     tx: TransactionClient,
   ): Promise<readonly JoinRequest[]>;
+
+  /**
+   * Layer 7.5 — count of upcoming, accepted JoinRequests for a user.
+   * Predicate: `userId = $userId AND status = 'accepted' AND match.cancelled_at
+   * IS NULL AND match.start_time > $now`. Used by `/me` to populate the
+   * delete-confirm modal copy "You're signed up for N upcoming match(es)…"
+   * (spec personal.md §148).
+   *
+   * Unlocked read; the count is informational, slight staleness between the
+   * page render and the actual DELETE is fine — the server backstop is the
+   * cascade itself, not this number.
+   */
+  countUpcomingAccepted(userId: UserId, now: Date): Promise<number>;
 }

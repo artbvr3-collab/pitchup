@@ -39,6 +39,15 @@ class FakeUserRepo implements UserRepository {
   async findByIds(): Promise<readonly User[]> {
     return [];
   }
+  async findById(): Promise<User | null> {
+    return null;
+  }
+  async countActiveAdmins(): Promise<number> {
+    throw new Error("not used in update-profile tests");
+  }
+  async markDeleted(): Promise<void> {
+    throw new Error("not used in update-profile tests");
+  }
   async updateProfile(
     userId: string,
     input: UpdateProfileInput,

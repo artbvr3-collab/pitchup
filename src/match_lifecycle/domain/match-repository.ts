@@ -179,4 +179,29 @@ export interface MatchRepository {
     cancelReason: string,
     tx: TransactionClient,
   ): Promise<void>;
+
+  /**
+   * Layer 7.5 — captain's upcoming, not-yet-cancelled matches. Predicate:
+   * `captainId = $userId AND cancelled_at IS NULL AND start_time > $now`.
+   * Used by:
+   *   1. `DeleteAccountService` cascade — iterates and re-cancels each one
+   *      through the existing `CancelMatchService` so the per-match lock,
+   *      mass-reject, watch wipe, and notification fan-out all happen.
+   *   2. `/me` page rendering — `.length` feeds the "N upcoming match(es)"
+   *      figure in the delete-confirm modal (spec personal.md §147).
+   *
+   * Excludes InProgress matches per spec global.md "Ghost match" — they
+   * continue normally; the captain just becomes `[Removed user]` on Lineup.
+   * Excludes already-cancelled rows so a retry after a partial cascade
+   * doesn't re-enter `CancelMatchService` (which would throw
+   * `AlreadyCancelledError`; we'd swallow, but skipping at fetch-time is
+   * cheaper).
+   *
+   * Returns plain `Match[]` (no venue join) — the cascade only needs ids,
+   * and the modal copy only needs the count.
+   */
+  findUpcomingByCaptain(
+    userId: UserId,
+    now: Date,
+  ): Promise<readonly Match[]>;
 }
