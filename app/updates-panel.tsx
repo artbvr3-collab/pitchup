@@ -21,16 +21,9 @@
 
 import { useRouter } from "next/navigation";
 
+import type { UpdatesStateNotification } from "@/src/notifications/application/updates-state-service";
 import type { NotificationType } from "@/src/notifications/domain/notification";
 import { Sheet } from "@/src/ui/components/sheet";
-
-export interface UpdateItem {
-  readonly id: string;
-  readonly type: NotificationType;
-  readonly match_id: string | null;
-  readonly body: string;
-  readonly ts: string;
-}
 
 /** Icon per type — spec global.md → "Updates panel" → "Item structure". */
 const ICON_BY_TYPE: Record<NotificationType, string> = {
@@ -46,13 +39,13 @@ const ICON_BY_TYPE: Record<NotificationType, string> = {
 export interface UpdatesPanelProps {
   readonly open: boolean;
   readonly onClose: () => void;
-  readonly items: readonly UpdateItem[];
+  readonly items: readonly UpdatesStateNotification[];
 }
 
 export function UpdatesPanel({ open, onClose, items }: UpdatesPanelProps) {
   const router = useRouter();
 
-  const openItem = (item: UpdateItem): void => {
+  const openItem = (item: UpdatesStateNotification): void => {
     onClose();
     if (item.match_id) router.push(`/matches/${item.match_id}`);
   };

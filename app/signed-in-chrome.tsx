@@ -35,7 +35,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import type { UpdatesStateResponse } from "@/src/notifications/application/updates-state-service";
+import type {
+  UpdatesStateNotification,
+  UpdatesStateResponse,
+} from "@/src/notifications/application/updates-state-service";
 import {
   fireBrowserNotification,
   readBrowserNotifFlag,
@@ -43,7 +46,7 @@ import {
 } from "@/src/ui/lib/browser-notifications";
 import { PollingHttpError, usePolling } from "@/src/ui/hooks/use-polling";
 
-import { UpdatesPanel, type UpdateItem } from "./updates-panel";
+import { UpdatesPanel } from "./updates-panel";
 
 /** Routes where the signed-in TopBar shows and the global poll runs. */
 const ACTIVE_PREFIXES = ["/my-matches", "/me", "/games"];
@@ -58,7 +61,7 @@ export function SignedInChrome() {
 
   const [since, setSince] = useState<string | null>(null);
   const [hasUnread, setHasUnread] = useState(false);
-  const [items, setItems] = useState<readonly UpdateItem[]>([]);
+  const [items, setItems] = useState<readonly UpdatesStateNotification[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
   // First successful poll returns the last 20 as "new" — don't pop browser
   // notifications for those (only for genuinely-new delta rows).
@@ -163,10 +166,10 @@ export function SignedInChrome() {
 
 /** Merge incoming notifications into the panel list, dedupe by id, newest first, cap 20. */
 function mergeItems(
-  prev: readonly UpdateItem[],
-  incoming: readonly UpdateItem[],
-): readonly UpdateItem[] {
-  const byId = new Map<string, UpdateItem>();
+  prev: readonly UpdatesStateNotification[],
+  incoming: readonly UpdatesStateNotification[],
+): readonly UpdatesStateNotification[] {
+  const byId = new Map<string, UpdatesStateNotification>();
   for (const n of incoming) byId.set(n.id, n);
   for (const n of prev) if (!byId.has(n.id)) byId.set(n.id, n);
   return [...byId.values()]
@@ -184,7 +187,7 @@ function mergeItems(
  * fireBrowserNotification.
  */
 function maybeFireBrowserNotifications(
-  newItems: readonly UpdateItem[],
+  newItems: readonly UpdatesStateNotification[],
   navigate: (matchId: string) => void,
 ): void {
   if (typeof document === "undefined" || !document.hidden) return;

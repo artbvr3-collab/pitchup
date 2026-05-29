@@ -27,6 +27,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAuth } from "@/src/auth/composition";
 import { updatesStateService } from "@/src/notifications/composition";
 import { toHttpResponse } from "@/src/shared/errors/http-mapping";
+import { parseSince } from "@/src/shared/http/parse-since";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,15 +49,4 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   } catch (err) {
     return toHttpResponse(err);
   }
-}
-
-/**
- * Lenient ISO parser — missing / malformed → null (full current state). Mirrors
- * the per-match poll endpoint; polling endpoints never 4xx on bad query strings.
- */
-function parseSince(raw: string | null): Date | null {
-  if (!raw) return null;
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed;
 }

@@ -41,6 +41,7 @@ import {
 } from "@/src/match_lifecycle/infrastructure/repositories";
 import { asUserId } from "@/src/auth/domain/user";
 import { toHttpResponse } from "@/src/shared/errors/http-mapping";
+import { parseSince } from "@/src/shared/http/parse-since";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,16 +89,4 @@ export async function GET(
   } catch (err) {
     return toHttpResponse(err);
   }
-}
-
-/**
- * Lenient ISO parser. Returns `null` for missing / malformed input so the
- * service falls back to the full-history branch. Matches the broader
- * Discover-style "never 400 on bad query strings" convention.
- */
-function parseSince(raw: string | null): Date | null {
-  if (!raw) return null;
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed;
 }
