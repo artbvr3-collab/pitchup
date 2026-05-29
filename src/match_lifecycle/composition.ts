@@ -17,6 +17,7 @@
  */
 import { userRepository } from "@/src/auth/infrastructure/repositories";
 import { chatMessageRepository } from "@/src/chat/infrastructure/repositories";
+import { notificationRepository } from "@/src/notifications/infrastructure/repositories";
 
 import { ApproveJoinRequestService } from "./application/approve-join-request-service";
 import { CancelJoinRequestService } from "./application/cancel-join-request-service";
@@ -61,11 +62,13 @@ export const approveJoinRequestService = new ApproveJoinRequestService(
   matchRepository,
   joinRequestRepository,
   watchRepository,
+  notificationRepository,
 );
 
 export const rejectJoinRequestService = new RejectJoinRequestService(
   matchRepository,
   joinRequestRepository,
+  notificationRepository,
 );
 
 export const matchStateService = new MatchStateService(
@@ -80,6 +83,7 @@ export const leaveMatchService = new LeaveMatchService(
   matchRepository,
   joinRequestRepository,
   watchRepository,
+  notificationRepository,
 );
 
 export const cancelJoinRequestService = new CancelJoinRequestService(
@@ -104,12 +108,14 @@ export const kickPlayerService = new KickPlayerService(
   matchRepository,
   joinRequestRepository,
   watchRepository,
+  notificationRepository,
 );
 
 export const cancelMatchService = new CancelMatchService(
   matchRepository,
   joinRequestRepository,
   watchRepository,
+  notificationRepository,
 );
 
 export const editMatchService = new EditMatchService(
@@ -117,4 +123,5 @@ export const editMatchService = new EditMatchService(
   joinRequestRepository,
   watchRepository,
   venueRepository,
+  notificationRepository,
 );

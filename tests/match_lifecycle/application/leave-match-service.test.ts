@@ -18,6 +18,7 @@ import {
 import {
   FakeJoinRequestRepository,
   FakeMatchRepository,
+  FakeNotificationRepository,
   FakeWatchRepository,
   OTHER_PLAYER_ID,
   SEED_MATCH_ID,
@@ -37,9 +38,10 @@ function makeService() {
   const matchRepo = new FakeMatchRepository();
   const joinRepo = new FakeJoinRequestRepository();
   const watchRepo = new FakeWatchRepository();
+  const notifications = new FakeNotificationRepository();
   matchRepo.put(makeMatch());
-  const service = new LeaveMatchService(matchRepo, joinRepo, watchRepo);
-  return { service, matchRepo, joinRepo, watchRepo };
+  const service = new LeaveMatchService(matchRepo, joinRepo, watchRepo, notifications);
+  return { service, matchRepo, joinRepo, watchRepo, notifications };
 }
 
 describe("LeaveMatchService", () => {
@@ -113,7 +115,8 @@ describe("LeaveMatchService", () => {
     matchRepo.put(makeMatch({ cancelledAt: new Date("2026-05-26T11:30:00Z") }));
     const joinRepo = new FakeJoinRequestRepository();
     const watchRepo = new FakeWatchRepository();
-    const service = new LeaveMatchService(matchRepo, joinRepo, watchRepo);
+    const notifications = new FakeNotificationRepository();
+    const service = new LeaveMatchService(matchRepo, joinRepo, watchRepo, notifications);
     joinRepo.seed({
       matchId: SEED_MATCH_ID,
       userId: SEED_PLAYER_ID,
@@ -140,7 +143,8 @@ describe("LeaveMatchService", () => {
     );
     const joinRepo = new FakeJoinRequestRepository();
     const watchRepo = new FakeWatchRepository();
-    const service = new LeaveMatchService(matchRepo, joinRepo, watchRepo);
+    const notifications = new FakeNotificationRepository();
+    const service = new LeaveMatchService(matchRepo, joinRepo, watchRepo, notifications);
 
     joinRepo.seed({
       matchId: SEED_MATCH_ID,
@@ -180,7 +184,8 @@ describe("LeaveMatchService", () => {
     );
     const joinRepo = new FakeJoinRequestRepository();
     const watchRepo = new FakeWatchRepository();
-    const service = new LeaveMatchService(matchRepo, joinRepo, watchRepo);
+    const notifications = new FakeNotificationRepository();
+    const service = new LeaveMatchService(matchRepo, joinRepo, watchRepo, notifications);
 
     joinRepo.seed({
       matchId: SEED_MATCH_ID,

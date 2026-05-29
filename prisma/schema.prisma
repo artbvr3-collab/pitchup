@@ -2,9 +2,10 @@
 // Source of truth for the spec: docs/spec/pitchup-app-map.md → "Main entities"
 //                              docs/spec/pitchup-spec-global.md → "Authentication", "Slot math", "Field surface", "Cover venue"
 //                              docs/spec/pitchup-spec-match.md → "Match states"
-// Layers: 1 (User), 2 (Match + Venue read-only), 4 (JoinRequest + Watch), 5 (ChatMessage).
-// Subsequent layers grow this file (ChatRead, Notification, Report,
-// AdminAction, ReminderSent, Like — see app-map ERD).
+// Layers: 1 (User), 2 (Match + Venue read-only), 4 (JoinRequest + Watch),
+//         5 (ChatMessage), 7 (Notification).
+// Subsequent layers grow this file (ChatRead, Report, AdminAction,
+// ReminderSent, Like — see app-map ERD).
 
 generator client {
   provider = "prisma-client-js"
@@ -35,6 +36,7 @@ model User {
   joinRequests   JoinRequest[]
   watches        Watch[]
   chatMessages   ChatMessage[]  @relation("ChatMessageAuthor")
+  notifications  Notification[]
 
   @@map("users")
 }
@@ -102,11 +104,12 @@ model Match {
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  captain      User          @relation("MatchCaptain", fields: [captainId], references: [id])
-  venue        Venue         @relation(fields: [venueId], references: [id])
-  joinRequests JoinRequest[]
-  watches      Watch[]
-  chatMessages ChatMessage[]
+  captain       User           @relation("MatchCaptain", fields: [captainId], references: [id])
+  venue         Venue          @relation(fields: [venueId], references: [id])
+  joinRequests  JoinRequest[]
+  watches       Watch[]
+  chatMessages  ChatMessage[]
+  notifications Notification[]
 
   @@index([startTime])
   @@index([venueId])
@@ -190,4 +193,41 @@ model ChatMessage {
 
   @@index([matchId, createdAt])
   @@map("chat_messages")
+}
+
+/// In-app inbox item (Updates panel). One row per notification event; for a
+/// subset of types it is also mirrored to email / browser push in Layer 7b.
+/// Source of truth: docs/spec/pitchup-app-map.md → "Notification" +
+/// docs/spec/pitchup-spec-global.md → "Notifications" / "Polling sync".
+///
+/// `type` is a `text` column app-validated against NotificationType (not a
+/// Postgres enum — same convention as `Match.surface` / `JoinRequest.status`).
+///
+/// `body` is a ready-made EN string written at the source event — the frontend
+/// renders it verbatim (no client templates; global.md → "Notification text
+/// comes from `body`").
+///
+/// `matchId` is nullable for future match-less types; in v1 it is always set.
+///
+/// onDelete Cascade on BOTH relations (unlike JoinRequest/ChatMessage which
+/// Restrict on the user to preserve history): notifications are disposable,
+/// 30-day-TTL'd per-user rows — if a match is hard-deleted (admin, Layer 9) or
+/// a user is ever hard-removed, their notifications should vanish, not block.
+///
+/// Index `(user_id, created_at DESC)` drives the Updates panel query and the
+/// `since`-cursor on `GET /api/updates/state`.
+model Notification {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  type      String
+  matchId   String?   @map("match_id") @db.Uuid
+  body      String
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  readAt    DateTime? @map("read_at") @db.Timestamptz(6)
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match Match? @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("notifications")
 }

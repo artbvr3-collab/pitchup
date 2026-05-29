@@ -44,25 +44,16 @@
  *     `[Cancel match]` on non-live statuses; the 409 covers direct curls.
  *     Rain / injury / force majeure handled outside the app per personal.md
  *     "Known gaps".
- * TODO(Layer 7 — Notifications):
- *   - Insert one notification row per accepted JR INSIDE tx:
- *       notification(type='match_cancelled', user_id=accepted.userId,
- *         match_id, body=`Match cancelled — ${cancelReason}`)
- *   - Insert one notification row per formerly-pending JR INSIDE tx (the
- *     rows returned by `massRejectPending` carry the previous userIds):
- *       notification(type='match_cancelled', user_id=pending.userId,
- *         match_id, body='Your request was declined — match was cancelled')
- *   - Two DIFFERENT bodies, one SAME type (`match_cancelled`). Polling
- *     payload uses different `my_status` values for the two audiences
- *     (`cancelled` for accepted, `declined` for formerly-pending — per
- *     spec global.md "Polling sync" → my_status table). The body strings
- *     above are spec wording (spec §280-281).
+ * NOTE (Layer 7 — Notifications):
+ *   - Inserts one `match_cancelled` row per accepted JR (body "Match
+ *     cancelled — <reason>") and per formerly-pending JR (body "Your request
+ *     was declined — match was cancelled") INSIDE the same tx. Two DIFFERENT
+ *     bodies, one SAME type. Polling derives different `my_status` for the
+ *     two audiences (`cancelled` vs `declined`) on read.
  *   - Watching players: NO notification, NO `matches_changed` entry — Watch
- *     is deleted silently (spec §282). The `👀 Watching` card in their
- *     /my-matches goes stale until next render; this is the accepted
- *     watching-subscription semantics.
- *   - We do NOT send email on cancel (spec global.md "Notifications" — only
- *     approve / kick / morning reminder get email).
+ *     is deleted silently (spec §282); the `👀 Watching` card goes stale
+ *     until next render.
+ *   - No email on cancel (spec "Notifications" allowlist).
  * RELATED DOCS:
  *   - docs/spec/pitchup-spec-match.md → "Per-endpoint checklist" → POST
  *     /cancel, "Reject / Kick / Leave flows" → "Match cancellation",
@@ -73,6 +64,12 @@
  *     sanitization" (cancel_reason limits), "Polling sync" → my_status
  */
 import { asUserId } from "@/src/auth/domain/user";
+import type { NewNotification } from "@/src/notifications/domain/notification";
+import {
+  buildMatchCancelledBody,
+  NOTIFICATION_BODIES,
+} from "@/src/notifications/domain/notification-bodies";
+import type { NotificationRepository } from "@/src/notifications/domain/notification-repository";
 import { withMatchLock } from "@/src/shared/db/with-match-lock";
 
 import {
@@ -104,6 +101,7 @@ export class CancelMatchService {
     private readonly matchRepository: MatchRepository,
     private readonly joinRequestRepository: JoinRequestRepository,
     private readonly watchRepository: WatchRepository,
+    private readonly notificationRepository: NotificationRepository,
   ) {}
 
   async execute(
@@ -160,17 +158,32 @@ export class CancelMatchService {
       const watchRowsDeleted =
         await this.watchRepository.deleteAllForMatch(matchId, tx);
 
-      // TODO(Layer 7): for each accepted JR (re-read NOT needed — accepted
-      //   set isn't mutated by cancel; we'll re-read under tx in Layer 7):
-      //     notification(type='match_cancelled', user_id, match_id,
-      //       body=`Match cancelled — ${cancelReason}`) INSIDE tx.
-      // TODO(Layer 7): for each row in `rejected`:
-      //     notification(type='match_cancelled', user_id=row.userId,
-      //       match_id, body='Your request was declined — match was cancelled')
-      //     INSIDE tx.
-      // Two bodies, one type. Watching players intentionally NOT notified
-      // (spec §282 — Watch deleted silently). No email on cancel (spec
-      // global.md "Notifications" allowlist).
+      // 7. Notifications INSIDE the same tx (spec "Write ordering"). Two
+      //    DIFFERENT bodies, one SAME type (`match_cancelled`): accepted
+      //    players get "Match cancelled — <reason>"; former-pending players
+      //    (the `rejected` pre-image rows) get "Your request was declined —
+      //    match was cancelled". Accepted JRs are unchanged by cancel, so we
+      //    re-read them under the lock. Watching players are NOT notified —
+      //    Watch was wiped silently above (spec §282). No email on cancel.
+      const accepted = await this.joinRequestRepository.listAcceptedForMatch(
+        matchId,
+        tx,
+      );
+      const notifications: NewNotification[] = [
+        ...accepted.map((jr) => ({
+          userId: jr.userId,
+          type: "match_cancelled" as const,
+          matchId,
+          body: buildMatchCancelledBody(input.cancelReason),
+        })),
+        ...rejected.map((jr) => ({
+          userId: jr.userId,
+          type: "match_cancelled" as const,
+          matchId,
+          body: NOTIFICATION_BODIES.matchCancelledPending,
+        })),
+      ];
+      await this.notificationRepository.insertMany(notifications, tx);
 
       return {
         status: "cancelled" as const,

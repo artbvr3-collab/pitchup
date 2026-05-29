@@ -26,6 +26,7 @@ import { asMatchId } from "@/src/match_lifecycle/domain/match";
 import {
   FakeJoinRequestRepository,
   FakeMatchRepository,
+  FakeNotificationRepository,
   FakeWatchRepository,
   OTHER_PLAYER_ID,
   SEED_CAPTAIN_ID,
@@ -33,6 +34,7 @@ import {
   SEED_PLAYER_ID,
   makeMatch,
 } from "../_helpers/fakes";
+import { NOTIFICATION_BODIES } from "@/src/notifications/domain/notification-bodies";
 
 vi.mock("@/src/shared/db/with-match-lock", () => ({
   withMatchLock: <T,>(_id: string, work: (tx: unknown) => Promise<T>) =>
@@ -45,16 +47,17 @@ function makeService(matchOverrides = {}) {
   const matchRepo = new FakeMatchRepository();
   const joinRepo = new FakeJoinRequestRepository();
   const watchRepo = new FakeWatchRepository();
+  const notifications = new FakeNotificationRepository();
   matchRepo.put(makeMatch(matchOverrides));
-  const service = new KickPlayerService(matchRepo, joinRepo, watchRepo);
-  return { service, matchRepo, joinRepo, watchRepo };
+  const service = new KickPlayerService(matchRepo, joinRepo, watchRepo, notifications);
+  return { service, matchRepo, joinRepo, watchRepo, notifications };
 }
 
 describe("KickPlayerService", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("flips accepted → kicked and returns notifiedWatcherCount 0 when no watchers", async () => {
-    const { service, joinRepo } = makeService();
+    const { service, joinRepo, notifications } = makeService();
     const jr = joinRepo.seed({
       matchId: SEED_MATCH_ID,
       userId: SEED_PLAYER_ID,
@@ -75,6 +78,12 @@ describe("KickPlayerService", () => {
 
     const row = joinRepo.rows.get(jr.id);
     expect(row?.status).toBe("kicked");
+
+    expect(notifications.inserted).toHaveLength(1);
+    const kickedRow = notifications.inserted[0]!;
+    expect(kickedRow.type).toBe("kicked");
+    expect(kickedRow.body).toBe(NOTIFICATION_BODIES.kicked);
+    expect(kickedRow.userId).toBe(SEED_PLAYER_ID);
   });
 
   it("MatchNotFoundError when the match id is unknown", async () => {

@@ -63,23 +63,16 @@
  *     whitelist. Non-material (description, total_spots, captain_crew) is
  *     silent for accepted players — only watching gets a separate channel
  *     via notifyWatching on slot-freeing edits.
- * TODO(Layer 7 — Notifications):
- *   - Compute `changedMaterialFields` (intersection of MATERIAL_EDIT_FIELDS
- *     and the patch keys whose value actually differs from the pre-image)
- *     and, if non-empty, for each accepted JR insert:
- *       notification(type='match_updated', user_id=accepted.userId,
- *         match_id, body=`Match updated: ${changedMaterialFields.join(', ')}`)
- *       INSIDE tx.
- *   - Non-material changes (description / total_spots / captain_crew) →
- *     silent — no notification row. The accepted card refreshes via the
- *     next polling `matches_changed` entry (Layer 7 wires this on the read
- *     side).
- *   - Watching fan-out for `total_spots ↑` / stub removal already wired
- *     inside `notifyWatching` — see TODO markers there. NOT a
- *     `match_updated` notification (spec §654 explicit exception — separate
- *     channel).
- *   - We do NOT send email on edit (spec global.md "Notifications" — only
- *     approve / kick / morning reminder get email).
+ * NOTE (Layer 7 — Notifications):
+ *   - `computeChangedMaterialFields(match, afterMatch)` (domain helper) yields
+ *     the human labels of changed material fields; if non-empty, one
+ *     `match_updated` row per accepted JR is inserted INSIDE the tx (body
+ *     "Match updated: <fields>"). Non-material changes (description /
+ *     total_spots / captain_crew) are silent — accepted cards refresh via the
+ *     next poll `matches_changed` entry.
+ *   - The watching fan-out (total↑ / stub removal) is a SEPARATE channel
+ *     inside `notifyWatching` — NOT a `match_updated` notification (spec §654).
+ *   - No email on edit (spec "Notifications" allowlist).
  * RELATED DOCS:
  *   - docs/spec/pitchup-spec-match.md → "/matches/:id/edit", "Per-endpoint
  *     checklist" → PATCH /matches/:id, "Race scenarios — resolution matrix"
@@ -88,8 +81,11 @@
  *   - docs/spec/pitchup-spec-global.md → "Total spots — hard cap on approve"
  */
 import { asUserId } from "@/src/auth/domain/user";
+import { buildMatchUpdatedBody } from "@/src/notifications/domain/notification-bodies";
+import type { NotificationRepository } from "@/src/notifications/domain/notification-repository";
 import { withMatchLock } from "@/src/shared/db/with-match-lock";
 
+import { computeChangedMaterialFields } from "../domain/compute-changed-material-fields";
 import {
   CapacityBelowFilledError,
   ConcurrentModificationError,
@@ -135,6 +131,7 @@ export class EditMatchService {
     private readonly joinRequestRepository: JoinRequestRepository,
     private readonly watchRepository: WatchRepository,
     private readonly venueRepository: VenueRepository,
+    private readonly notificationRepository: NotificationRepository,
   ) {}
 
   async execute(
@@ -207,22 +204,37 @@ export class EditMatchService {
         tx,
       );
 
-      // TODO(Layer 7): if changedMaterialFields.length > 0:
-      //   for each accepted JR: notification(type='match_updated',
-      //     user_id=accepted.userId, match_id,
-      //     body=`Match updated: ${changedMaterialFields.join(', ')}`)
-      //     INSIDE tx.
-      // The diff helper (`computeChangedMaterialFields(match, afterMatch)`)
-      // can be derived from the pre/post pair captured above. Non-material
-      // fields are intentionally silent for accepted players (spec §653);
-      // the watching fan-out below covers the slot-freeing exception.
+      // Material-change notification to accepted players INSIDE the same tx
+      // (spec "Write ordering"). Non-material edits (description / total_spots
+      // / captain_crew) are silent for accepted players — they refresh via the
+      // next poll `matches_changed` entry. The watching fan-out (total↑ / stub
+      // removal) is a SEPARATE channel handled by notifyWatching below — NOT a
+      // match_updated notification (spec §654 exception).
+      const changedMaterialFields = computeChangedMaterialFields(
+        match,
+        afterMatch,
+      );
+      if (changedMaterialFields.length > 0) {
+        await this.notificationRepository.insertMany(
+          acceptedBefore.map((jr) => ({
+            userId: jr.userId,
+            type: "match_updated" as const,
+            matchId,
+            body: buildMatchUpdatedBody(changedMaterialFields),
+          })),
+          tx,
+        );
+      }
 
       // 7. notifyWatching fires when isFull flips true → false. The helper
       //    short-circuits on no-op transitions. Captain self-trigger skip
       //    (spec match.md "notify watching" step 4) — watchers always get
       //    the push, the captain does not (they initiated the action).
       const watch = await notifyWatching(
-        { watchRepository: this.watchRepository },
+        {
+          watchRepository: this.watchRepository,
+          notificationRepository: this.notificationRepository,
+        },
         {
           matchId,
           slotsBefore,

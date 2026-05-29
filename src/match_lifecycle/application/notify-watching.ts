@@ -7,12 +7,11 @@
  *            1. Compare before/after isFull. Skip if no flip.
  *            2. Collect the user-id list of current watchers under the lock.
  *            3. Bulk DELETE all Watch rows for the match (one-shot semantics).
- *            4. Return the result for the caller / future Layer 7 dispatcher.
- *          Notification inserts are intentionally deferred to Layer 7 — see
- *          // TODO(Layer 7) markers in the body. The watcher-id list is
- *          captured so the Layer 7 wiring is a single-line insert.
+ *            4. Insert `spot_opened` notifications (watchers always; captain
+ *               only when !triggeredByCaptain) INSIDE the same `tx`, then
+ *               return the result for callers / tests.
  * LAYER: application
- * DEPENDENCIES (ports): WatchRepository
+ * DEPENDENCIES (ports): WatchRepository, NotificationRepository
  * CONSUMED BY: src/match_lifecycle/application/leave-match-service.ts
  *              (Layer 6.5 will add kick-player-service + edit-match-service)
  * INVARIANTS:
@@ -32,12 +31,10 @@
  *     Layer 7 caller doesn't re-derive it.
  *   - Returns immediately when the flip didn't happen — saves a round-trip
  *     to the watch table.
- * TODO(Layer 7 — Notifications):
- *   - Inject `NotificationRepository` via a ports object. Insert one row per
- *     watcher: `notification(type='spot_opened', user_id, match_id, body,
- *     created_at)` INSIDE the same `tx` (spec match.md → "Write ordering:
- *     notifications inside transaction"). Also insert one for the captain
- *     when `notifyCaptain === true`.
+ *   - Layer 7: `spot_opened` notifications are inserted here via the injected
+ *     `NotificationRepository.insertMany` — watchers always, captain only when
+ *     `notifyCaptain` (i.e. !triggeredByCaptain). All inside the caller's `tx`
+ *     (spec match.md → "Write ordering: notifications inside transaction").
  * RELATED DOCS:
  *   - docs/spec/pitchup-spec-match.md → "notify watching", "Watching logic",
  *     "Race scenarios — resolution matrix" → "Leave/Kick + watching-notify",
@@ -45,6 +42,9 @@
  *   - docs/spec/pitchup-spec-global.md → "Notifications" → spot_opened
  */
 import type { UserId } from "@/src/auth/domain/user";
+import type { NewNotification } from "@/src/notifications/domain/notification";
+import { NOTIFICATION_BODIES } from "@/src/notifications/domain/notification-bodies";
+import type { NotificationRepository } from "@/src/notifications/domain/notification-repository";
 import type { TransactionClient } from "@/src/shared/db/types";
 
 import type { MatchId } from "../domain/match";
@@ -53,7 +53,7 @@ import type { WatchRepository } from "../domain/watch-repository";
 
 export interface NotifyWatchingPorts {
   readonly watchRepository: WatchRepository;
-  // Layer 7 will add: notificationRepository: NotificationRepository
+  readonly notificationRepository: NotificationRepository;
 }
 
 export interface NotifyWatchingInput {
@@ -109,24 +109,31 @@ export async function notifyWatching(
     input.tx,
   );
 
-  // TODO(Layer 7): for each id in watcherUserIds:
-  //   notificationRepository.insert({
-  //     type: 'spot_opened', userId: id, matchId: input.matchId,
-  //     body: "🟢 A spot just opened in [match]",
-  //   }, input.tx);
-  //
-  // TODO(Layer 7): if notifyCaptain (i.e. !triggeredByCaptain):
-  //   notificationRepository.insert({
-  //     type: 'spot_opened', userId: input.captainId,
-  //     matchId: input.matchId,
-  //     body: "🟢 A spot opened up in your match",
-  //   }, input.tx);
-  // Spec match.md → "notify watching" step 4 — these inserts MUST live inside
-  // the same `tx` so they disappear on rollback. Layer 7 adds the port.
+  // Spec match.md → "notify watching" step 4: the spot_opened inserts live
+  // INSIDE the caller's `tx`, so they roll back with the freeing mutation.
+  // Watchers always get the push; the captain only on a player-initiated free
+  // (Leave). `triggeredByCaptain` suppresses the captain's self-push on
+  // Kick / Edit total↑ / stub removal.
+  const notifyCaptain = !input.triggeredByCaptain;
+  const notifications: NewNotification[] = watcherUserIds.map((userId) => ({
+    userId,
+    type: "spot_opened",
+    matchId: input.matchId,
+    body: NOTIFICATION_BODIES.spotOpenedWatcher,
+  }));
+  if (notifyCaptain) {
+    notifications.push({
+      userId: input.captainId,
+      type: "spot_opened",
+      matchId: input.matchId,
+      body: NOTIFICATION_BODIES.spotOpenedCaptain,
+    });
+  }
+  await ports.notificationRepository.insertMany(notifications, input.tx);
 
   return {
     watcherUserIds,
-    notifyCaptain: !input.triggeredByCaptain,
+    notifyCaptain,
     fired: true,
     watchRowsDeleted,
   };

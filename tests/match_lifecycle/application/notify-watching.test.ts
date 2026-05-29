@@ -18,12 +18,14 @@ import type { SlotInfo } from "@/src/match_lifecycle/domain/slot-math";
 
 import {
   FAKE_TX,
+  FakeNotificationRepository,
   FakeWatchRepository,
   OTHER_PLAYER_ID,
   SEED_CAPTAIN_ID,
   SEED_MATCH_ID,
   SEED_PLAYER_ID,
 } from "../_helpers/fakes";
+import { NOTIFICATION_BODIES } from "@/src/notifications/domain/notification-bodies";
 
 function slots(args: {
   filled: number;
@@ -41,10 +43,11 @@ const TWO_FREE = slots({ filled: 12, capacity: 14, free: 2, isFull: false });
 describe("notifyWatching", () => {
   it("does not fire when isFull stays true → true", async () => {
     const watchRepo = new FakeWatchRepository();
+    const notificationRepo = new FakeNotificationRepository();
     watchRepo.seed(SEED_MATCH_ID, SEED_PLAYER_ID);
 
     const result = await notifyWatching(
-      { watchRepository: watchRepo },
+      { watchRepository: watchRepo, notificationRepository: notificationRepo },
       {
         matchId: SEED_MATCH_ID,
         slotsBefore: FULL,
@@ -60,12 +63,15 @@ describe("notifyWatching", () => {
     expect(result.watchRowsDeleted).toBe(0);
     // Watch row survives.
     expect(watchRepo.has(SEED_MATCH_ID, SEED_PLAYER_ID)).toBe(true);
+    // No notifications inserted on no-flip.
+    expect(notificationRepo.inserted.length).toBe(0);
   });
 
   it("does not fire when isFull stays false → false (Leave on a non-full match)", async () => {
     const watchRepo = new FakeWatchRepository();
+    const notificationRepo = new FakeNotificationRepository();
     const result = await notifyWatching(
-      { watchRepository: watchRepo },
+      { watchRepository: watchRepo, notificationRepository: notificationRepo },
       {
         matchId: SEED_MATCH_ID,
         slotsBefore: TWO_FREE,
@@ -76,15 +82,18 @@ describe("notifyWatching", () => {
       },
     );
     expect(result.fired).toBe(false);
+    // No notifications inserted on no-flip.
+    expect(notificationRepo.inserted.length).toBe(0);
   });
 
   it("fires on true → false: captures all watchers and bulk-deletes", async () => {
     const watchRepo = new FakeWatchRepository();
+    const notificationRepo = new FakeNotificationRepository();
     watchRepo.seed(SEED_MATCH_ID, SEED_PLAYER_ID);
     watchRepo.seed(SEED_MATCH_ID, OTHER_PLAYER_ID);
 
     const result = await notifyWatching(
-      { watchRepository: watchRepo },
+      { watchRepository: watchRepo, notificationRepository: notificationRepo },
       {
         matchId: SEED_MATCH_ID,
         slotsBefore: FULL,
@@ -106,14 +115,27 @@ describe("notifyWatching", () => {
     expect(watchRepo.has(SEED_MATCH_ID, SEED_PLAYER_ID)).toBe(false);
     expect(watchRepo.has(SEED_MATCH_ID, OTHER_PLAYER_ID)).toBe(false);
     expect(watchRepo.bulkDeleted).toEqual([{ matchId: SEED_MATCH_ID, count: 2 }]);
+
+    // Leave-style (triggeredByCaptain: false): watcher rows + captain row present.
+    const watcherRows = notificationRepo.inserted.filter(
+      (n) => n.body === NOTIFICATION_BODIES.spotOpenedWatcher,
+    );
+    expect(watcherRows).toHaveLength(2);
+    expect(watcherRows.every((n) => n.type === "spot_opened")).toBe(true);
+    const captainRow = notificationRepo.inserted.find(
+      (n) => n.body === NOTIFICATION_BODIES.spotOpenedCaptain,
+    );
+    expect(captainRow).toBeDefined();
+    expect(captainRow?.userId).toBe(SEED_CAPTAIN_ID);
   });
 
   it("triggeredByCaptain → notifyCaptain === false (captain self-trigger skip)", async () => {
     const watchRepo = new FakeWatchRepository();
+    const notificationRepo = new FakeNotificationRepository();
     watchRepo.seed(SEED_MATCH_ID, SEED_PLAYER_ID);
 
     const result = await notifyWatching(
-      { watchRepository: watchRepo },
+      { watchRepository: watchRepo, notificationRepository: notificationRepo },
       {
         matchId: SEED_MATCH_ID,
         slotsBefore: FULL,
@@ -127,14 +149,25 @@ describe("notifyWatching", () => {
     expect(result.fired).toBe(true);
     expect(result.notifyCaptain).toBe(false);
     expect(result.watcherUserIds.length).toBe(1);
+
+    // Kick/Edit-style (triggeredByCaptain: true): watcher rows present, NO captain row.
+    const captainRow = notificationRepo.inserted.find(
+      (n) => n.body === NOTIFICATION_BODIES.spotOpenedCaptain,
+    );
+    expect(captainRow).toBeUndefined();
+    const watcherRows = notificationRepo.inserted.filter(
+      (n) => n.body === NOTIFICATION_BODIES.spotOpenedWatcher,
+    );
+    expect(watcherRows).toHaveLength(1);
   });
 
   it("fires with zero watchers (full match no one was watching) — still wipes nothing", async () => {
     const watchRepo = new FakeWatchRepository();
+    const notificationRepo = new FakeNotificationRepository();
     // No watchers seeded.
 
     const result = await notifyWatching(
-      { watchRepository: watchRepo },
+      { watchRepository: watchRepo, notificationRepository: notificationRepo },
       {
         matchId: SEED_MATCH_ID,
         slotsBefore: FULL,

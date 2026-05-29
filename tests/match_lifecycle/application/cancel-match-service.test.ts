@@ -26,6 +26,7 @@ import { asMatchId } from "@/src/match_lifecycle/domain/match";
 import {
   FakeJoinRequestRepository,
   FakeMatchRepository,
+  FakeNotificationRepository,
   FakeWatchRepository,
   OTHER_PLAYER_ID,
   SEED_CAPTAIN_ID,
@@ -33,6 +34,10 @@ import {
   SEED_PLAYER_ID,
   makeMatch,
 } from "../_helpers/fakes";
+import {
+  NOTIFICATION_BODIES,
+  buildMatchCancelledBody,
+} from "@/src/notifications/domain/notification-bodies";
 
 vi.mock("@/src/shared/db/with-match-lock", () => ({
   withMatchLock: <T,>(_id: string, work: (tx: unknown) => Promise<T>) =>
@@ -45,16 +50,17 @@ function makeService(matchOverrides = {}) {
   const matchRepo = new FakeMatchRepository();
   const joinRepo = new FakeJoinRequestRepository();
   const watchRepo = new FakeWatchRepository();
+  const notifications = new FakeNotificationRepository();
   matchRepo.put(makeMatch(matchOverrides));
-  const service = new CancelMatchService(matchRepo, joinRepo, watchRepo);
-  return { service, matchRepo, joinRepo, watchRepo };
+  const service = new CancelMatchService(matchRepo, joinRepo, watchRepo, notifications);
+  return { service, matchRepo, joinRepo, watchRepo, notifications };
 }
 
 describe("CancelMatchService", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("happy path: writes cancelled_at + cancel_reason, mass-rejects pending, wipes watch", async () => {
-    const { service, matchRepo, joinRepo, watchRepo } = makeService();
+    const { service, matchRepo, joinRepo, watchRepo, notifications } = makeService();
     joinRepo.seed({
       matchId: SEED_MATCH_ID,
       userId: SEED_PLAYER_ID,
@@ -100,6 +106,19 @@ describe("CancelMatchService", () => {
 
     // Watch wiped.
     expect(watchRepo.has(SEED_MATCH_ID, OTHER_PLAYER_ID)).toBe(false);
+
+    // Notification assertions.
+    const cancelledRow = notifications.inserted.find(
+      (n) => n.userId === OTHER_PLAYER_ID,
+    );
+    expect(cancelledRow?.type).toBe("match_cancelled");
+    expect(cancelledRow?.body).toBe(buildMatchCancelledBody("Field flooded"));
+
+    const pendingRow = notifications.inserted.find(
+      (n) => n.userId === SEED_PLAYER_ID,
+    );
+    expect(pendingRow?.type).toBe("match_cancelled");
+    expect(pendingRow?.body).toBe(NOTIFICATION_BODIES.matchCancelledPending);
   });
 
   it("MatchNotFoundError when the match id is unknown", async () => {

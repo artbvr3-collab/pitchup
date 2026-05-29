@@ -6,7 +6,8 @@
  *          → invoke `notifyWatching` (one-shot push + bulk DELETE of Watch
  *          rows iff `isFull` flips true → false).
  * LAYER: application
- * DEPENDENCIES (ports): MatchRepository, JoinRequestRepository, WatchRepository
+ * DEPENDENCIES (ports): MatchRepository, JoinRequestRepository, WatchRepository,
+ *                       NotificationRepository (passed through to notifyWatching)
  *                       + notifyWatching helper + withMatchLock
  * CONSUMED BY: app/api/matches/[id]/leave/route.ts
  * INVARIANTS:
@@ -30,9 +31,10 @@
  *   - 404 NotInMatchError covers both "no JR row" and "JR row not accepted"
  *     (left, kicked, rejected, cancelled, pending). The frontend treats
  *     404 as success-no-op (spec → "Idempotency").
- * TODO(Layer 7 — Notifications):
- *   - Inserts for watching players + the captain (one each) live inside
- *     `notifyWatching` — see markers there. Nothing additional here.
+ * NOTE (Layer 7 — Notifications):
+ *   - `spot_opened` inserts for watching players + the captain (Leave is a
+ *     player-initiated free, so the captain IS notified) live inside
+ *     `notifyWatching`; this service passes the NotificationRepository through.
  *   - The `leave_reason` field captured in the Leave-flow modal (radio:
  *     "Can't make it" / "Injury" / "Personal reasons" / "Other") is NOT
  *     persisted yet — `JoinRequest` has no `leave_reason` column. Adding
@@ -44,6 +46,7 @@
  *   - docs/spec/pitchup-spec-global.md → "Guests (+N on join)"
  */
 import { asUserId } from "@/src/auth/domain/user";
+import type { NotificationRepository } from "@/src/notifications/domain/notification-repository";
 import { withMatchLock } from "@/src/shared/db/with-match-lock";
 
 import {
@@ -76,6 +79,7 @@ export class LeaveMatchService {
     private readonly matchRepository: MatchRepository,
     private readonly joinRequestRepository: JoinRequestRepository,
     private readonly watchRepository: WatchRepository,
+    private readonly notificationRepository: NotificationRepository,
   ) {}
 
   async execute(
@@ -121,7 +125,10 @@ export class LeaveMatchService {
       const slotsAfter = computeSlots(match, acceptedSlotsAfter);
 
       const watch = await notifyWatching(
-        { watchRepository: this.watchRepository },
+        {
+          watchRepository: this.watchRepository,
+          notificationRepository: this.notificationRepository,
+        },
         {
           matchId,
           slotsBefore,

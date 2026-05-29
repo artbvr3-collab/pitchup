@@ -24,6 +24,7 @@ import { asJoinRequestId } from "@/src/match_lifecycle/domain/join-request";
 import {
   FakeJoinRequestRepository,
   FakeMatchRepository,
+  FakeNotificationRepository,
   FakeWatchRepository,
   OTHER_PLAYER_ID,
   SEED_CAPTAIN_ID,
@@ -31,6 +32,7 @@ import {
   SEED_PLAYER_ID,
   makeMatch,
 } from "../_helpers/fakes";
+import { NOTIFICATION_BODIES } from "@/src/notifications/domain/notification-bodies";
 
 vi.mock("@/src/shared/db/with-match-lock", () => ({
   withMatchLock: <T,>(_id: string, work: (tx: unknown) => Promise<T>) =>
@@ -43,16 +45,17 @@ function makeService() {
   const matchRepo = new FakeMatchRepository();
   const joinRepo = new FakeJoinRequestRepository();
   const watchRepo = new FakeWatchRepository();
+  const notifications = new FakeNotificationRepository();
   matchRepo.put(makeMatch());
-  const service = new ApproveJoinRequestService(matchRepo, joinRepo, watchRepo);
-  return { service, matchRepo, joinRepo, watchRepo };
+  const service = new ApproveJoinRequestService(matchRepo, joinRepo, watchRepo, notifications);
+  return { service, matchRepo, joinRepo, watchRepo, notifications };
 }
 
 describe("ApproveJoinRequestService", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("flips pending → accepted and removes the user's Watch", async () => {
-    const { service, joinRepo, watchRepo } = makeService();
+    const { service, joinRepo, watchRepo, notifications } = makeService();
     const req = joinRepo.seed({
       matchId: SEED_MATCH_ID,
       userId: SEED_PLAYER_ID,
@@ -68,6 +71,12 @@ describe("ApproveJoinRequestService", () => {
     expect(result.status).toBe("accepted");
     expect(joinRepo.rows.get(req.id)!.status).toBe("accepted");
     expect(watchRepo.has(SEED_MATCH_ID, SEED_PLAYER_ID)).toBe(false);
+
+    expect(notifications.inserted).toHaveLength(1);
+    const approvedRow = notifications.inserted[0]!;
+    expect(approvedRow.type).toBe("approved");
+    expect(approvedRow.body).toBe(NOTIFICATION_BODIES.approved);
+    expect(approvedRow.userId).toBe(SEED_PLAYER_ID);
   });
 
   it("404s when the match id does not exist", async () => {
@@ -160,7 +169,8 @@ describe("ApproveJoinRequestService", () => {
     matchRepo.put(makeMatch({ cancelledAt: new Date("2026-05-26T11:30:00Z") }));
     const joinRepo = new FakeJoinRequestRepository();
     const watchRepo = new FakeWatchRepository();
-    const service = new ApproveJoinRequestService(matchRepo, joinRepo, watchRepo);
+    const notifications = new FakeNotificationRepository();
+    const service = new ApproveJoinRequestService(matchRepo, joinRepo, watchRepo, notifications);
     const req = joinRepo.seed({
       matchId: SEED_MATCH_ID,
       userId: SEED_PLAYER_ID,
@@ -180,7 +190,8 @@ describe("ApproveJoinRequestService", () => {
     matchRepo.put(makeMatch({ startTime: new Date("2026-05-26T11:00:00Z") }));
     const joinRepo = new FakeJoinRequestRepository();
     const watchRepo = new FakeWatchRepository();
-    const service = new ApproveJoinRequestService(matchRepo, joinRepo, watchRepo);
+    const notifications = new FakeNotificationRepository();
+    const service = new ApproveJoinRequestService(matchRepo, joinRepo, watchRepo, notifications);
     const req = joinRepo.seed({
       matchId: SEED_MATCH_ID,
       userId: SEED_PLAYER_ID,
@@ -207,7 +218,8 @@ describe("ApproveJoinRequestService", () => {
     );
     const joinRepo = new FakeJoinRequestRepository();
     const watchRepo = new FakeWatchRepository();
-    const service = new ApproveJoinRequestService(matchRepo, joinRepo, watchRepo);
+    const notifications = new FakeNotificationRepository();
+    const service = new ApproveJoinRequestService(matchRepo, joinRepo, watchRepo, notifications);
     const req = joinRepo.seed({
       matchId: SEED_MATCH_ID,
       userId: SEED_PLAYER_ID,
@@ -232,7 +244,8 @@ describe("ApproveJoinRequestService", () => {
     matchRepo.put(makeMatch({ totalSpots: 8, captainCrew: [] }));
     const joinRepo = new FakeJoinRequestRepository();
     const watchRepo = new FakeWatchRepository();
-    const service = new ApproveJoinRequestService(matchRepo, joinRepo, watchRepo);
+    const notifications = new FakeNotificationRepository();
+    const service = new ApproveJoinRequestService(matchRepo, joinRepo, watchRepo, notifications);
 
     const req1 = joinRepo.seed({
       matchId: SEED_MATCH_ID,
@@ -270,7 +283,8 @@ describe("ApproveJoinRequestService", () => {
     );
     const joinRepo = new FakeJoinRequestRepository();
     const watchRepo = new FakeWatchRepository();
-    const service = new ApproveJoinRequestService(matchRepo, joinRepo, watchRepo);
+    const notifications = new FakeNotificationRepository();
+    const service = new ApproveJoinRequestService(matchRepo, joinRepo, watchRepo, notifications);
     const req = joinRepo.seed({
       matchId: SEED_MATCH_ID,
       userId: SEED_PLAYER_ID,

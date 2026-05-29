@@ -29,6 +29,11 @@ import type {
   InsertChatMessageInput,
   ListChatMessagesForFeedOptions,
 } from "@/src/chat/domain/chat-message-repository";
+import type {
+  NewNotification,
+  NotificationRow,
+} from "@/src/notifications/domain/notification";
+import type { NotificationRepository } from "@/src/notifications/domain/notification-repository";
 import type { TransactionClient } from "@/src/shared/db/types";
 
 import {
@@ -483,6 +488,39 @@ export class FakeWatchRepository implements WatchRepository {
       if (key.endsWith(suffix)) out.push(key.slice(0, -suffix.length) as MatchId);
     }
     return out;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// NotificationRepository (Layer 6.5)
+// ---------------------------------------------------------------------------
+
+export class FakeNotificationRepository implements NotificationRepository {
+  /** Every inserted row (insert + insertMany flattened) in call order. */
+  public inserted: NewNotification[] = [];
+  public markAllReadCalls: string[] = [];
+  private store: NotificationRow[] = [];
+
+  async insert(n: NewNotification, _tx: TransactionClient): Promise<void> {
+    this.inserted.push(n);
+  }
+  async insertMany(
+    ns: readonly NewNotification[],
+    _tx: TransactionClient,
+  ): Promise<void> {
+    this.inserted.push(...ns);
+  }
+  async listRecent(): Promise<readonly NotificationRow[]> {
+    return this.store;
+  }
+  async hasUnread(): Promise<boolean> {
+    return this.store.some((r) => r.readAt === null);
+  }
+  async markAllRead(userId: string): Promise<void> {
+    this.markAllReadCalls.push(userId);
+  }
+  async deleteOlderThan(): Promise<number> {
+    return 0;
   }
 }
 

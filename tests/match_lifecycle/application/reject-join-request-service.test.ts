@@ -22,12 +22,14 @@ import { asJoinRequestId } from "@/src/match_lifecycle/domain/join-request";
 import {
   FakeJoinRequestRepository,
   FakeMatchRepository,
+  FakeNotificationRepository,
   OTHER_PLAYER_ID,
   SEED_CAPTAIN_ID,
   SEED_MATCH_ID,
   SEED_PLAYER_ID,
   makeMatch,
 } from "../_helpers/fakes";
+import { NOTIFICATION_BODIES } from "@/src/notifications/domain/notification-bodies";
 
 vi.mock("@/src/shared/db/with-match-lock", () => ({
   withMatchLock: <T,>(_id: string, work: (tx: unknown) => Promise<T>) =>
@@ -39,16 +41,17 @@ const NOW = new Date("2026-05-26T12:00:00Z");
 function makeService() {
   const matchRepo = new FakeMatchRepository();
   const joinRepo = new FakeJoinRequestRepository();
+  const notifications = new FakeNotificationRepository();
   matchRepo.put(makeMatch());
-  const service = new RejectJoinRequestService(matchRepo, joinRepo);
-  return { service, matchRepo, joinRepo };
+  const service = new RejectJoinRequestService(matchRepo, joinRepo, notifications);
+  return { service, matchRepo, joinRepo, notifications };
 }
 
 describe("RejectJoinRequestService", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("flips pending → rejected with auto_reason = NULL (captain-initiated)", async () => {
-    const { service, joinRepo } = makeService();
+    const { service, joinRepo, notifications } = makeService();
     const req = joinRepo.seed({
       matchId: SEED_MATCH_ID,
       userId: SEED_PLAYER_ID,
@@ -64,6 +67,12 @@ describe("RejectJoinRequestService", () => {
     const after = joinRepo.rows.get(req.id)!;
     expect(after.status).toBe("rejected");
     expect(after.autoReason).toBeNull();
+
+    expect(notifications.inserted).toHaveLength(1);
+    const rejectedRow = notifications.inserted[0]!;
+    expect(rejectedRow.type).toBe("rejected");
+    expect(rejectedRow.body).toBe(NOTIFICATION_BODIES.rejected);
+    expect(rejectedRow.userId).toBe(SEED_PLAYER_ID);
   });
 
   it("404s when match id does not exist", async () => {
@@ -133,7 +142,8 @@ describe("RejectJoinRequestService", () => {
     const matchRepo = new FakeMatchRepository();
     matchRepo.put(makeMatch({ cancelledAt: new Date("2026-05-26T11:00:00Z") }));
     const joinRepo = new FakeJoinRequestRepository();
-    const service = new RejectJoinRequestService(matchRepo, joinRepo);
+    const notifications = new FakeNotificationRepository();
+    const service = new RejectJoinRequestService(matchRepo, joinRepo, notifications);
     const req = joinRepo.seed({
       matchId: SEED_MATCH_ID,
       userId: SEED_PLAYER_ID,

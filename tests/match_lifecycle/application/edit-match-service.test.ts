@@ -35,6 +35,7 @@ import { asMatchId } from "@/src/match_lifecycle/domain/match";
 import {
   FakeJoinRequestRepository,
   FakeMatchRepository,
+  FakeNotificationRepository,
   FakeVenueRepository,
   FakeWatchRepository,
   OTHER_PLAYER_ID,
@@ -44,6 +45,9 @@ import {
   SEED_VENUE_ID,
   makeMatch,
 } from "../_helpers/fakes";
+import {
+  buildMatchUpdatedBody,
+} from "@/src/notifications/domain/notification-bodies";
 
 vi.mock("@/src/shared/db/with-match-lock", () => ({
   withMatchLock: <T,>(_id: string, work: (tx: unknown) => Promise<T>) =>
@@ -58,21 +62,23 @@ function makeService(matchOverrides = {}, venue?: FakeVenueRepository) {
   const joinRepo = new FakeJoinRequestRepository();
   const watchRepo = new FakeWatchRepository();
   const venueRepo = venue ?? new FakeVenueRepository();
+  const notifications = new FakeNotificationRepository();
   matchRepo.put(makeMatch(matchOverrides));
   const service = new EditMatchService(
     matchRepo,
     joinRepo,
     watchRepo,
     venueRepo,
+    notifications,
   );
-  return { service, matchRepo, joinRepo, watchRepo, venueRepo };
+  return { service, matchRepo, joinRepo, watchRepo, venueRepo, notifications };
 }
 
 describe("EditMatchService", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("happy path: description change writes new updatedAt and bumps the column", async () => {
-    const { service, matchRepo } = makeService();
+    const { service, matchRepo, notifications } = makeService();
     const result = await service.execute(
       {
         matchId: SEED_MATCH_ID,
@@ -91,6 +97,9 @@ describe("EditMatchService", () => {
 
     const match = await matchRepo.findById(SEED_MATCH_ID);
     expect(match?.description).toBe("Bring water");
+
+    // description-only is non-material — no match_updated notifications.
+    expect(notifications.inserted.filter((n) => n.type === "match_updated").length).toBe(0);
   });
 
   it("MatchNotFoundError when the match id is unknown", async () => {
@@ -334,10 +343,16 @@ describe("EditMatchService", () => {
       coverId: "c",
       active: true,
     });
-    const { service, matchRepo } = makeService(
+    const { service, matchRepo, joinRepo, notifications } = makeService(
       { surface: "grass", studsAllowed: true },
       venueRepo,
     );
+    // Seed one accepted player so match_updated notification is addressed.
+    joinRepo.seed({
+      matchId: SEED_MATCH_ID,
+      userId: SEED_PLAYER_ID,
+      status: "accepted",
+    });
 
     await service.execute(
       {
@@ -352,6 +367,12 @@ describe("EditMatchService", () => {
     const match = await matchRepo.findById(SEED_MATCH_ID);
     expect(match?.surface).toBe("hard");
     expect(match?.studsAllowed).toBe(false);
+
+    // surface + studsAllowed (force-reset) are both material — one notification per accepted player.
+    const updatedRows = notifications.inserted.filter((n) => n.type === "match_updated");
+    expect(updatedRows).toHaveLength(1);
+    expect(updatedRows[0]!.userId).toBe(SEED_PLAYER_ID);
+    expect(updatedRows[0]!.body).toBe(buildMatchUpdatedBody(["surface", "studs"]));
   });
 
   it("Surface Grass→Hard with explicit studs:true in payload → still forced to false", async () => {

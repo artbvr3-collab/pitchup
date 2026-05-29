@@ -39,16 +39,13 @@
  *     left a moment earlier — race "Leave + Kick" in spec matrix). The
  *     frontend treats both 404 outcomes as success-no-op (the desired state
  *     "player not on roster" is already true). Spec match.md "Idempotency".
- * TODO(Layer 7 — Notifications):
- *   - Insert `notification(type='kicked', user_id=request.userId,
- *     match_id=matchId, body='You were removed from [match]')` INSIDE the
- *     same `tx` (spec "Write ordering: notifications inside transaction").
- *   - Email send to the kicked player — Kick is the only player-removal
- *     event that earns email per spec global.md "Notifications" (approve +
- *     kick + morning reminder). Layer 7 will inject an EmailSender port via
- *     the constructor.
- *   - Watcher inserts + captain self-trigger skip already wired inside
- *     `notifyWatching` — see TODO markers there. Nothing additional here.
+ * NOTE (Layer 7 — Notifications):
+ *   - Inserts `notification(type='kicked', body="You were removed from the
+ *     match")` for request.userId INSIDE the same `tx` (spec "Write
+ *     ordering"). Watcher / captain spot_opened fan-out is handled by
+ *     `notifyWatching` (port passed through the ports object).
+ *   - Email to the kicked player (Kick is on the email allowlist) is deferred
+ *     to Layer 7b (EmailSender port) — TODO(Layer 7b) marker in the body.
  * RELATED DOCS:
  *   - docs/spec/pitchup-spec-match.md → "Reject / Kick / Leave flows",
  *     "Per-endpoint checklist" → POST /kick, "Race scenarios — resolution
@@ -57,6 +54,8 @@
  *     "Notifications" (email allowlist)
  */
 import { asUserId } from "@/src/auth/domain/user";
+import { NOTIFICATION_BODIES } from "@/src/notifications/domain/notification-bodies";
+import type { NotificationRepository } from "@/src/notifications/domain/notification-repository";
 import { withMatchLock } from "@/src/shared/db/with-match-lock";
 
 import {
@@ -92,6 +91,7 @@ export class KickPlayerService {
     private readonly matchRepository: MatchRepository,
     private readonly joinRequestRepository: JoinRequestRepository,
     private readonly watchRepository: WatchRepository,
+    private readonly notificationRepository: NotificationRepository,
   ) {}
 
   async execute(
@@ -149,14 +149,25 @@ export class KickPlayerService {
         acceptedSlotsBefore - freedSlots(request.guestCount);
       const slotsAfter = computeSlots(match, acceptedSlotsAfter);
 
-      // TODO(Layer 7): notification(type='kicked', user_id=request.userId,
-      //   match_id=matchId, body='You were removed from [match]') INSIDE tx.
-      // TODO(Layer 7): email send to request.userId via EmailSender port —
+      // Notification to the kicked player INSIDE the same tx (spec "Write
+      // ordering"). notifyWatching below covers the watcher / captain fan-out.
+      await this.notificationRepository.insert(
+        {
+          userId: request.userId,
+          type: "kicked",
+          matchId,
+          body: NOTIFICATION_BODIES.kicked,
+        },
+        tx,
+      );
+      // TODO(Layer 7b): email send to request.userId via EmailSender port —
       //   Kick is on the email allowlist (spec global.md "Notifications").
-      //   notifyWatching covers the watcher fan-out below.
 
       const watch = await notifyWatching(
-        { watchRepository: this.watchRepository },
+        {
+          watchRepository: this.watchRepository,
+          notificationRepository: this.notificationRepository,
+        },
         {
           matchId,
           slotsBefore,

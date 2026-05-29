@@ -21,17 +21,18 @@
  *     "Approve + Approve same request" all funnel into the same checks:
  *     request must still be `pending` under the lock — else
  *     AlreadyProcessedError. If the row is gone entirely → RequestNotFoundError.
- * TODO(Layer 7 — Notifications):
- *   - Insert `notification(type='approved', user_id=request.userId,
- *     match_id=matchId, body=...)` INSIDE this transaction, before commit.
- *     Spec match.md → "Write ordering: notifications inside transaction".
- *     Layer 7 will inject a NotificationRepository port via the constructor.
+ * NOTE (Layer 7 — Notifications):
+ *   - Inserts `notification(type='approved', body="✓ You're in")` for
+ *     request.userId INSIDE this transaction (spec match.md → "Write
+ *     ordering"). Email for approve is deferred to Layer 7b (EmailSender).
  * RELATED DOCS:
  *   - docs/spec/pitchup-spec-match.md → "Approve flow", "Per-endpoint
  *     checklist" → POST /approve, "Race scenarios — resolution matrix"
  *   - docs/spec/pitchup-spec-global.md → "Total spots — hard cap on approve"
  */
 import { asUserId } from "@/src/auth/domain/user";
+import { NOTIFICATION_BODIES } from "@/src/notifications/domain/notification-bodies";
+import type { NotificationRepository } from "@/src/notifications/domain/notification-repository";
 import { withMatchLock } from "@/src/shared/db/with-match-lock";
 
 import {
@@ -60,6 +61,7 @@ export class ApproveJoinRequestService {
     private readonly matchRepository: MatchRepository,
     private readonly joinRequestRepository: JoinRequestRepository,
     private readonly watchRepository: WatchRepository,
+    private readonly notificationRepository: NotificationRepository,
   ) {}
 
   async execute(
@@ -137,7 +139,17 @@ export class ApproveJoinRequestService {
         tx,
       );
 
-      // TODO(Layer 7): notification(type='approved') for request.userId.
+      // Notification inside the same tx (spec "Write ordering"). Approve also
+      // earns an email — that channel lands in Layer 7b (EmailSender port).
+      await this.notificationRepository.insert(
+        {
+          userId: request.userId,
+          type: "approved",
+          matchId,
+          body: NOTIFICATION_BODIES.approved,
+        },
+        tx,
+      );
 
       return { status: "accepted" as const };
     });

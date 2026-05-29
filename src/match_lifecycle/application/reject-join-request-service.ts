@@ -16,15 +16,17 @@
  *     filled). No Watch cleanup (Watch wasn't tied to the pending row).
  *   - No re-apply limit — the player may Join again from any none-role
  *     state. Spec match.md → "Reject / Kick / Leave flows".
- * TODO(Layer 7 — Notifications):
- *   - Insert `notification(type='rejected', user_id=request.userId,
- *     match_id=matchId)` INSIDE this transaction. Spec match.md → "Write
- *     ordering" (notifications inside the same tx, visible after commit).
+ * NOTE (Layer 7 — Notifications):
+ *   - Inserts `notification(type='rejected', body="Your request was
+ *     declined")` INSIDE this transaction (spec match.md → "Write ordering").
+ *     No email on reject (spec "Notifications" allowlist).
  * RELATED DOCS:
  *   - docs/spec/pitchup-spec-match.md → "Per-endpoint checklist" → POST /reject,
  *     "Reject / Kick / Leave flows"
  */
 import { asUserId } from "@/src/auth/domain/user";
+import { NOTIFICATION_BODIES } from "@/src/notifications/domain/notification-bodies";
+import type { NotificationRepository } from "@/src/notifications/domain/notification-repository";
 import { withMatchLock } from "@/src/shared/db/with-match-lock";
 
 import {
@@ -50,6 +52,7 @@ export class RejectJoinRequestService {
   constructor(
     private readonly matchRepository: MatchRepository,
     private readonly joinRequestRepository: JoinRequestRepository,
+    private readonly notificationRepository: NotificationRepository,
   ) {}
 
   async execute(
@@ -97,7 +100,17 @@ export class RejectJoinRequestService {
         tx,
       );
 
-      // TODO(Layer 7): notification(type='rejected') for request.userId.
+      // Notification inside the same tx. No email on reject (spec
+      // "Notifications" allowlist — only approve / kick / morning reminder).
+      await this.notificationRepository.insert(
+        {
+          userId: request.userId,
+          type: "rejected",
+          matchId,
+          body: NOTIFICATION_BODIES.rejected,
+        },
+        tx,
+      );
 
       return { status: "rejected" as const };
     });
