@@ -33,9 +33,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import type { UpdatesStateResponse } from "@/src/notifications/application/updates-state-service";
+import {
+  fireBrowserNotification,
+  readBrowserNotifFlag,
+  writeBrowserNotifFlag,
+} from "@/src/ui/lib/browser-notifications";
 import { PollingHttpError, usePolling } from "@/src/ui/hooks/use-polling";
 
 import { UpdatesPanel, type UpdateItem } from "./updates-panel";
@@ -55,6 +60,9 @@ export function SignedInChrome() {
   const [hasUnread, setHasUnread] = useState(false);
   const [items, setItems] = useState<readonly UpdateItem[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
+  // First successful poll returns the last 20 as "new" — don't pop browser
+  // notifications for those (only for genuinely-new delta rows).
+  const bootstrappedRef = useRef(false);
 
   const pollUrl = useMemo(
     () =>
@@ -66,9 +74,18 @@ export function SignedInChrome() {
     url: pollUrl,
     enabled: isActive,
     onPayload: (payload) => {
+      const isBootstrap = !bootstrappedRef.current;
+      bootstrappedRef.current = true;
+
       setHasUnread(payload.has_unread_notifications);
       if (payload.new_notifications.length > 0) {
         setItems((prev) => mergeItems(prev, payload.new_notifications));
+        if (!isBootstrap) {
+          maybeFireBrowserNotifications(
+            payload.new_notifications,
+            (matchId) => router.push(`/matches/${matchId}`),
+          );
+        }
       }
       if (payload.matches_changed.length > 0) {
         router.refresh();
@@ -155,4 +172,41 @@ function mergeItems(
   return [...byId.values()]
     .sort((a, b) => b.ts.localeCompare(a.ts))
     .slice(0, 20);
+}
+
+/**
+ * Fire a browser notification per new item — ONLY when the tab is hidden
+ * (foreground is already covered by the in-app inbox), the user opted in
+ * (localStorage flag), and permission is granted. `morning_reminder` is
+ * suppressed as a popup (email + in-app already cover it — spec §337). A throw
+ * means the permission was revoked externally → flip the flag off so /me
+ * reflects it on next mount (spec §339). Cross-tab dedup is via the `tag` in
+ * fireBrowserNotification.
+ */
+function maybeFireBrowserNotifications(
+  newItems: readonly UpdateItem[],
+  navigate: (matchId: string) => void,
+): void {
+  if (typeof document === "undefined" || !document.hidden) return;
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") {
+    return;
+  }
+  if (!readBrowserNotifFlag()) return;
+
+  for (const item of newItems) {
+    if (item.type === "morning_reminder") continue;
+    try {
+      fireBrowserNotification({
+        id: item.id,
+        title: "PITCHUP",
+        body: item.body,
+        onClick: item.match_id
+          ? () => navigate(item.match_id as string)
+          : undefined,
+      });
+    } catch {
+      writeBrowserNotifFlag(false);
+      break;
+    }
+  }
 }

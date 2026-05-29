@@ -6,12 +6,11 @@
  *          notifications toggle — live in client islands wired to the
  *          `updateProfileAction` Server Action.
  *
- *          Out of scope for Layer 6 (rendered as disabled / coming soon):
- *            - View public profile → /users/:id (Layer 7)
- *            - Browser notifications toggle (Layer 7 — needs Notification
- *              API + iOS UA detection + localStorage)
- *            - In-app inbox toggle (Layer 7 — always-on, no toggle by spec)
- *            - Delete account (Layer 7 — sensitive flow with cascade)
+ *          Layer 7b: the Browser notifications toggle is live (client island
+ *          `BrowserNotificationsToggle`, hidden on iOS). Still deferred:
+ *            - View public profile → /users/:id (Layer 7.5)
+ *            - Delete account (Layer 7.5 — sensitive cascade)
+ *            - In-app inbox has no toggle by spec (always on)
  * LAYER: interfaces (Server Component)
  * DEPENDENCIES: src/auth/composition (requireAuth + userRepository for fresh
  *               profile fields), ./actions (signOutAction)
@@ -36,6 +35,7 @@ import { asUserId } from "@/src/auth/domain/user";
 import { cn } from "@/src/ui/lib/cn";
 
 import { signOutAction } from "./actions";
+import { BrowserNotificationsToggle } from "./browser-notifications-toggle";
 import { EditProfileSection } from "./edit-profile-section";
 import { EmailNotificationsToggle } from "./email-notifications-toggle";
 
@@ -97,12 +97,7 @@ export default async function MePage() {
             <EmailNotificationsToggle initialEnabled={user.emailNotifications} />
           }
         />
-        <DisabledRow
-          icon="🔔"
-          label="Browser notifications"
-          description="Get notified even when the tab is in the background."
-          comingSoon="Coming in Layer 7"
-        />
+        <BrowserNotificationsToggle />
       </div>
 
       <SectionHeader title="Legal" />
