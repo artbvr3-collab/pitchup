@@ -46,8 +46,20 @@ class FakeUserRepository implements UserRepository {
     throw new Error("findByIds() must not be called from requireAuthCore");
   }
 
+  async findById(): Promise<User | null> {
+    throw new Error("findById() must not be called from requireAuthCore");
+  }
+
   async updateProfile(): Promise<User> {
     throw new Error("updateProfile() must not be called from requireAuthCore");
+  }
+
+  async countActiveAdmins(): Promise<number> {
+    throw new Error("countActiveAdmins() must not be called from requireAuthCore");
+  }
+
+  async markDeleted(): Promise<void> {
+    throw new Error("markDeleted() must not be called from requireAuthCore");
   }
 }
 

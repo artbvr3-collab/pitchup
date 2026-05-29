@@ -1,29 +1,35 @@
 /**
  * MODULE: app.(private).me.page
- * PURPOSE: Layer-6 /me Server Component. Renders profile header + four
- *          settings sections (ACCOUNT / NOTIFICATIONS / LEGAL / ACCOUNT
- *          ACTIONS). The two interactive bits — Edit profile and Email
- *          notifications toggle — live in client islands wired to the
- *          `updateProfileAction` Server Action.
- *
- *          Layer 7b: the Browser notifications toggle is live (client island
- *          `BrowserNotificationsToggle`, hidden on iOS). Still deferred:
- *            - View public profile → /users/:id (Layer 7.5)
- *            - Delete account (Layer 7.5 — sensitive cascade)
- *            - In-app inbox has no toggle by spec (always on)
+ * PURPOSE: /me Server Component. Renders profile header + four settings
+ *          sections (ACCOUNT / NOTIFICATIONS / LEGAL / ACCOUNT ACTIONS).
+ *          The interactive bits live in client islands:
+ *            - `EditProfileSection` + `EmailNotificationsToggle` (Layer 6,
+ *              wired to the `updateProfileAction` Server Action).
+ *            - `BrowserNotificationsToggle` (Layer 7b, iOS-hidden).
+ *            - `DeleteAccountModal` (Layer 7.5, fetch DELETE /api/me +
+ *              signOutAction). The branch text is computed in this RSC
+ *              and handed to the modal — server is the source of truth.
+ *          `View public profile` is a plain `Link` to `/users/:id`.
  * LAYER: interfaces (Server Component)
- * DEPENDENCIES: src/auth/composition (requireAuth + userRepository for fresh
- *               profile fields), ./actions (signOutAction)
+ * DEPENDENCIES: src/auth/composition (requireAuth + userRepository),
+ *               src/match_lifecycle/composition (matchRepository +
+ *               joinRequestRepository for the delete-modal counts),
+ *               ./actions (signOutAction), ./delete-account-modal
  * INVARIANTS:
  *   - Auth-only. `requireAuth` throws on guest/banned/deleted; middleware
  *     already redirects guests to /login?callbackUrl=/me.
  *   - Reads `contactInfo` + `emailNotifications` via the userRepository
  *     (not from session) — session carries name/email/isAdmin only.
- *   - Sign out is rendered as a form posting to a Server Action (the only
- *     real "destructive" action on Layer 6's /me; Delete is deferred).
+ *   - The three delete-modal flags (`isLastAdmin`, `captainUpcomingCount`,
+ *     `acceptedUpcomingCount`) are computed server-side per spec
+ *     personal.md §145–149. The modal's body text comes from those, not
+ *     from a separate client-side fetch — keeps the modal SSR-friendly
+ *     and avoids a loading flash on open.
+ *   - Sign out is a Server Action form; Delete account is a client island
+ *     (it needs the fetch + post-response signOut + redirect coordination).
  * RELATED DOCS:
  *   - docs/spec/pitchup-spec-personal.md → "/me"
- *   - docs/ROADMAP.md → Layer 6
+ *   - docs/ROADMAP.md → Layer 7.5
  */
 import Link from "next/link";
 
@@ -32,10 +38,14 @@ import {
   userRepository,
 } from "@/src/auth/composition";
 import { asUserId } from "@/src/auth/domain/user";
-import { cn } from "@/src/ui/lib/cn";
+import {
+  joinRequestRepository,
+  matchRepository,
+} from "@/src/match_lifecycle/infrastructure/repositories";
 
 import { signOutAction } from "./actions";
 import { BrowserNotificationsToggle } from "./browser-notifications-toggle";
+import { DeleteAccountModal } from "./delete-account-modal";
 import { EditProfileSection } from "./edit-profile-section";
 import { EmailNotificationsToggle } from "./email-notifications-toggle";
 
@@ -43,9 +53,10 @@ export const dynamic = "force-dynamic";
 
 export default async function MePage() {
   const session = await requireAuth();
+  const userId = asUserId(session.userId);
   // Fetch fresh row — session lacks contactInfo + emailNotifications.
   // findByIds is the existing batch lookup; passing a single id is fine.
-  const [user] = await userRepository.findByIds([asUserId(session.userId)]);
+  const [user] = await userRepository.findByIds([userId]);
   if (!user) {
     // Defensive: requireAuth already verifies the row, so this is a race
     // (deletion between auth check and read). Treat like a session loss.
@@ -66,6 +77,20 @@ export default async function MePage() {
     );
   }
 
+  // Layer 7.5 — pre-compute the three numbers the Delete modal needs.
+  // Three parallel queries — all cheap (single row counts / scoped lists);
+  // RSC fan-out keeps the page TTFB unchanged in practice.
+  const now = new Date();
+  const [upcomingCaptainMatches, acceptedUpcomingCount, otherActiveAdmins] =
+    await Promise.all([
+      matchRepository.findUpcomingByCaptain(userId, now),
+      joinRequestRepository.countUpcomingAccepted(userId, now),
+      user.isAdmin
+        ? userRepository.countActiveAdmins(userId)
+        : Promise.resolve(Number.POSITIVE_INFINITY),
+    ]);
+  const isLastAdmin = user.isAdmin && otherActiveAdmins === 0;
+
   return (
     <main className="mx-auto w-full max-w-[375px] px-4 pb-12 pt-4">
       <h1 className="mb-4 text-[22px] font-bold leading-tight tracking-tight text-text-primary">
@@ -80,10 +105,10 @@ export default async function MePage() {
           initialName={user.name}
           initialContactInfo={user.contactInfo}
         />
-        <DisabledRow
+        <NavRow
           icon="👤"
           label="View public profile"
-          comingSoon="Coming in Layer 7"
+          href={`/users/${user.id}`}
         />
       </div>
 
@@ -124,14 +149,40 @@ export default async function MePage() {
             <span className="text-text-secondary">›</span>
           </button>
         </form>
-        <DisabledRow
-          icon="🗑️"
-          label="Delete account"
-          comingSoon="Coming in Layer 7"
-          destructive
+        <DeleteAccountModal
+          isLastAdmin={isLastAdmin}
+          captainUpcomingCount={upcomingCaptainMatches.length}
+          acceptedUpcomingCount={acceptedUpcomingCount}
         />
       </div>
     </main>
+  );
+}
+
+function NavRow({
+  icon,
+  label,
+  href,
+}: {
+  icon: string;
+  label: string;
+  href: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center justify-between rounded-card bg-bg-card p-4 shadow-card transition-colors hover:bg-bg-card-dim"
+    >
+      <span className="flex items-center gap-3">
+        <span className="text-[18px]" aria-hidden>
+          {icon}
+        </span>
+        <span className="text-[15px] font-semibold text-text-primary">
+          {label}
+        </span>
+      </span>
+      <span className="text-text-secondary">›</span>
+    </Link>
   );
 }
 
@@ -205,49 +256,6 @@ function SettingRow({
         )}
       </div>
       <div className="shrink-0">{control}</div>
-    </div>
-  );
-}
-
-function DisabledRow({
-  icon,
-  label,
-  description,
-  comingSoon,
-  destructive = false,
-}: {
-  icon: string;
-  label: string;
-  description?: string;
-  comingSoon: string;
-  destructive?: boolean;
-}) {
-  return (
-    <div
-      title={comingSoon}
-      className="flex items-start gap-3 rounded-card bg-bg-card p-4 opacity-60 shadow-card"
-    >
-      <span className="text-[18px] leading-none" aria-hidden>
-        {icon}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div
-          className={cn(
-            "text-[15px] font-semibold",
-            destructive ? "text-status-full" : "text-text-primary",
-          )}
-        >
-          {label}
-        </div>
-        {description && (
-          <div className="mt-0.5 text-[12px] text-text-secondary">
-            {description}
-          </div>
-        )}
-        <div className="mt-1 text-[11px] italic text-text-muted">
-          {comingSoon}
-        </div>
-      </div>
     </div>
   );
 }

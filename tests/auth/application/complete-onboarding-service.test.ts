@@ -62,8 +62,20 @@ class FakeUserRepository implements UserRepository {
     return [];
   }
 
+  async findById(): Promise<User | null> {
+    return null;
+  }
+
   async updateProfile(): Promise<User> {
     throw new Error("updateProfile() must not be called from onboarding flow");
+  }
+
+  async countActiveAdmins(): Promise<number> {
+    throw new Error("countActiveAdmins() must not be called from onboarding flow");
+  }
+
+  async markDeleted(): Promise<void> {
+    throw new Error("markDeleted() must not be called from onboarding flow");
   }
 }
 

@@ -70,6 +70,10 @@ class FakeMatchRepository implements MatchRepository {
   async cancel(): Promise<void> {
     throw new Error("cancel() not used in list-discover tests");
   }
+
+  async findUpcomingByCaptain(): Promise<readonly never[]> {
+    return [];
+  }
 }
 
 const NOW = new Date("2026-05-26T10:00:00Z"); // Prague 2026-05-26

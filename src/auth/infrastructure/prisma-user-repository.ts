@@ -65,6 +65,39 @@ export class PrismaUserRepository implements UserRepository {
     return rows.map(mapToDomain);
   }
 
+  async findById(id: UserId): Promise<User | null> {
+    // Layer 7.5 — DOES NOT filter by banned / deletedAt; the public
+    // `/users/:id` route handles the unified "no longer on PITCHUP" render
+    // path. Returns null only on a true 404 (row absent).
+    const row = await this.prisma.user.findUnique({
+      where: { id: id as unknown as string },
+    });
+    return row ? mapToDomain(row) : null;
+  }
+
+  async countActiveAdmins(excludeUserId?: UserId): Promise<number> {
+    return this.prisma.user.count({
+      where: {
+        isAdmin: true,
+        banned: false,
+        deletedAt: null,
+        ...(excludeUserId !== undefined
+          ? { id: { not: excludeUserId as unknown as string } }
+          : {}),
+      },
+    });
+  }
+
+  async markDeleted(userId: UserId): Promise<void> {
+    // Idempotent: setting deletedAt twice is harmless (column-based session
+    // invalidation already triggered on the first write). No advisory lock —
+    // User aggregate has no concurrent mutators.
+    await this.prisma.user.update({
+      where: { id: userId as unknown as string },
+      data: { deletedAt: new Date() },
+    });
+  }
+
   async updateProfile(
     userId: UserId,
     input: {

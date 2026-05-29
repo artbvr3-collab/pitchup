@@ -12,7 +12,11 @@
  *     or `application/` (would defeat the dependency direction).
  * RELATED DOCS: docs/ARCHITECTURE.md §3 (dependency direction).
  */
+import { cancelMatchService } from "@/src/match_lifecycle/composition";
+import { matchRepository } from "@/src/match_lifecycle/infrastructure/repositories";
+
 import { CompleteOnboardingService } from "./application/complete-onboarding-service";
+import { DeleteAccountService } from "./application/delete-account-service";
 import { requireAuthCore, type AuthenticatedUser } from "./application/require-auth";
 import { UpdateProfileService } from "./application/update-profile-service";
 import { asGoogleSub } from "./domain/user";
@@ -21,6 +25,17 @@ import { userRepository } from "./infrastructure/repositories";
 
 export const completeOnboardingService = new CompleteOnboardingService(userRepository);
 export const updateProfileService = new UpdateProfileService(userRepository);
+
+/**
+ * Layer 7.5 — cross-context: takes user-side ports + the match_lifecycle
+ * cancel service for the upcoming-match cascade. Importing concrete services
+ * (not just ports) from a sibling context is allowed at the composition root.
+ */
+export const deleteAccountService = new DeleteAccountService(
+  userRepository,
+  matchRepository,
+  cancelMatchService,
+);
 
 /** Layer 6 — surfaced for /me to render the read-only avatar + email. */
 export { userRepository };

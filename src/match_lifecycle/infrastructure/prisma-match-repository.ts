@@ -284,6 +284,25 @@ export class PrismaMatchRepository implements MatchRepository {
       },
     });
   }
+
+  async findUpcomingByCaptain(
+    userId: string,
+    now: Date,
+  ): Promise<readonly Match[]> {
+    // No advisory lock + no venue join — the cascade only needs match ids
+    // and the /me modal only needs `.length`. Ordering by startTime ASC is
+    // not required by either caller, but it keeps the DELETE flow's debug
+    // logs readable (oldest match cancelled first).
+    const rows = await this.prisma.match.findMany({
+      where: {
+        captainId: userId,
+        cancelledAt: null,
+        startTime: { gt: now },
+      },
+      orderBy: [{ startTime: "asc" }, { id: "asc" }],
+    });
+    return rows.map(matchRowToDomain);
+  }
 }
 
 type MatchWithVenueRow = MatchRow & {

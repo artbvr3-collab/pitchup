@@ -181,6 +181,23 @@ export class PrismaJoinRequestRepository implements JoinRequestRepository {
       toDomain({ ...row, status: "rejected", autoReason }),
     );
   }
+
+  async countUpcomingAccepted(userId: UserId, now: Date): Promise<number> {
+    // Cross-table predicate via Prisma relation filter — equivalent SQL:
+    //   SELECT COUNT(*) FROM join_requests jr JOIN matches m
+    //   ON jr.match_id = m.id
+    //   WHERE jr.user_id = $1
+    //     AND jr.status = 'accepted'
+    //     AND m.cancelled_at IS NULL
+    //     AND m.start_time > $2
+    return this.prisma.joinRequest.count({
+      where: {
+        userId,
+        status: "accepted",
+        match: { cancelledAt: null, startTime: { gt: now } },
+      },
+    });
+  }
 }
 
 function toDomain(row: JoinRequestRow): JoinRequest {
