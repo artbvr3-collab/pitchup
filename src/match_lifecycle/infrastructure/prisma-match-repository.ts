@@ -35,6 +35,8 @@ import type {
   DiscoverTimeOfDay,
   FindDiscoverPageOptions,
   FindDiscoverPageResult,
+  FindMapMatchesOptions,
+  FindMapMatchesResult,
   MatchRepository,
   UpdateMatchPatch,
 } from "../domain/match-repository";
@@ -331,6 +333,89 @@ export class PrismaMatchRepository implements MatchRepository {
       },
     });
     return rows.map(matchRowToDomain);
+  }
+
+  async findMapMatches(
+    options: FindMapMatchesOptions,
+  ): Promise<FindMapMatchesResult> {
+    const conditions: Prisma.Sql[] = [
+      Prisma.sql`m.cancelled_at IS NULL`,
+      Prisma.sql`m.start_time >= ${options.now}`,
+      Prisma.sql`m.start_time < ${options.horizonUtcEnd}`,
+    ];
+
+    if (options.timeOfDay.length > 0) {
+      const bucketSql = options.timeOfDay.map((tod) => {
+        const [from, to] = TIME_BUCKETS[tod];
+        return Prisma.sql`EXTRACT(HOUR FROM (m.start_time AT TIME ZONE 'Europe/Prague')) BETWEEN ${from} AND ${to}`;
+      });
+      conditions.push(Prisma.sql`(${Prisma.join(bucketSql, ` OR `)})`);
+    }
+
+    if (options.gameSize.length > 0) {
+      const spotsValues = options.gameSize.flatMap((n) => [2 * n, 2 * n + 1]);
+      conditions.push(Prisma.sql`m.total_spots IN (${Prisma.join(spotsValues)})`);
+    }
+
+    if (options.spotsLeft) {
+      const freeSlots = Prisma.sql`(m.total_spots - 1 - COALESCE(array_length(m.captain_crew, 1), 0))`;
+      switch (options.spotsLeft) {
+        case "1":
+          conditions.push(Prisma.sql`${freeSlots} = 1`);
+          break;
+        case "2-3":
+          conditions.push(Prisma.sql`${freeSlots} BETWEEN 2 AND 3`);
+          break;
+        case "4+":
+          conditions.push(Prisma.sql`${freeSlots} >= 4`);
+          break;
+      }
+    }
+
+    if (options.freeOnly) {
+      conditions.push(Prisma.sql`m.price = 0`);
+    }
+
+    if (options.fieldBookedOnly) {
+      conditions.push(Prisma.sql`m.field_booked = TRUE`);
+    }
+
+    if (options.venueSearch.trim().length > 0) {
+      const escaped = escapeIlike(options.venueSearch.trim());
+      conditions.push(Prisma.sql`v.name ILIKE ${`%${escaped}%`}`);
+    }
+
+    if (options.distanceKm !== null && options.location) {
+      const { lat, lng } = options.location;
+      conditions.push(Prisma.sql`
+        (2 * 6371 * asin(sqrt(
+          power(sin(radians((v.lat - ${lat}) / 2)), 2) +
+          cos(radians(${lat})) * cos(radians(v.lat)) *
+          power(sin(radians((v.lng - ${lng}) / 2)), 2)
+        ))) <= ${options.distanceKm}
+      `);
+    }
+
+    const whereSql = Prisma.join(conditions, ` AND `);
+
+    const rows = await this.prisma.$queryRaw<RawRow[]>(Prisma.sql`
+      SELECT
+        m.id, m.captain_id, m.venue_id, m.start_time, m.duration,
+        m.total_spots, m.price, m.surface, m.studs_allowed, m.field_booked,
+        m.description, m.description_hidden, m.captain_crew, m.cancelled_at,
+        m.cancel_reason, m.cancel_reason_hidden, m.cover_id, m.created_at,
+        m.updated_at,
+        v.id AS v_id, v.name AS v_name, v.address AS v_address,
+        v.lat AS v_lat, v.lng AS v_lng,
+        v.google_maps_url AS v_google_maps_url, v.surface AS v_surface,
+        v.cover_id AS v_cover_id, v.active AS v_active
+      FROM matches m
+      JOIN venues v ON v.id = m.venue_id
+      WHERE ${whereSql}
+      ORDER BY m.start_time ASC, m.id ASC
+    `);
+
+    return { rows: rows.map(mapToDomain) };
   }
 }
 

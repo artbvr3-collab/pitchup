@@ -121,6 +121,28 @@ export interface UpdateMatchPatch {
   readonly fieldBooked?: boolean;
 }
 
+/**
+ * Layer 8 — map view options (no date filter, no cursor; returns all matches
+ * in the 21-day Prague horizon that pass the sheet filters).
+ */
+export interface FindMapMatchesOptions {
+  readonly now: Date;
+  /** UTC end of today+20 Prague day (inclusive horizon boundary). */
+  readonly horizonUtcEnd: Date;
+  readonly timeOfDay: readonly DiscoverTimeOfDay[];
+  readonly gameSize: readonly number[];
+  readonly spotsLeft: DiscoverSpotsBucket | null;
+  readonly freeOnly: boolean;
+  readonly fieldBookedOnly: boolean;
+  readonly venueSearch: string;
+  readonly distanceKm: number | null;
+  readonly location: DiscoverLocation | null;
+}
+
+export interface FindMapMatchesResult {
+  readonly rows: readonly MatchWithVenue[];
+}
+
 export interface MatchRepository {
   findDiscoverPage(
     options: FindDiscoverPageOptions,
@@ -243,4 +265,12 @@ export interface MatchRepository {
     start: Date,
     end: Date,
   ): Promise<readonly Match[]>;
+
+  /**
+   * Layer 8 — map view. Returns every non-cancelled, non-past match within
+   * the 21-day Prague horizon that passes the sheet filters. No pagination —
+   * the map renders all pins at once. The caller decorates each row with
+   * `computeSlots` + `deriveMatchStatus` and filters out Cancelled / Ended.
+   */
+  findMapMatches(options: FindMapMatchesOptions): Promise<FindMapMatchesResult>;
 }

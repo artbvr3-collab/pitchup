@@ -31,6 +31,7 @@ import { JoinMatchService } from "./application/join-match-service";
 import { KickPlayerService } from "./application/kick-player-service";
 import { LeaveMatchService } from "./application/leave-match-service";
 import { ListDiscoverMatchesService } from "./application/list-discover-matches";
+import { ListMapMatchesService } from "./application/list-map-matches";
 import { ListMyMatchesService } from "./application/list-my-matches-service";
 import { ListVenuesService } from "./application/list-venues-service";
 import { MatchStateService } from "./application/match-state-service";
@@ -47,6 +48,8 @@ import {
 export const listDiscoverMatchesService = new ListDiscoverMatchesService(
   matchRepository,
 );
+
+export const listMapMatchesService = new ListMapMatchesService(matchRepository);
 
 export const createMatchService = new CreateMatchService(
   matchRepository,

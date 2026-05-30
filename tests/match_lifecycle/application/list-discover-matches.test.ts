@@ -82,6 +82,10 @@ class FakeMatchRepository implements MatchRepository {
   async findActiveStartingInWindow(): Promise<readonly never[]> {
     return [];
   }
+
+  async findMapMatches(): Promise<{ rows: readonly never[] }> {
+    return { rows: [] };
+  }
 }
 
 const NOW = new Date("2026-05-26T10:00:00Z"); // Prague 2026-05-26

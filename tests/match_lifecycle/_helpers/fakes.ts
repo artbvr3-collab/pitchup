@@ -61,6 +61,8 @@ import type {
   CreateMatchPersistenceInput,
   FindDiscoverPageOptions,
   FindDiscoverPageResult,
+  FindMapMatchesOptions,
+  FindMapMatchesResult,
   MatchRepository,
   UpdateMatchPatch,
 } from "@/src/match_lifecycle/domain/match-repository";
@@ -262,6 +264,12 @@ export class FakeMatchRepository implements MatchRepository {
       if (m && m.startTime.getTime() <= now.getTime()) out.push(id);
     }
     return out;
+  }
+
+  async findMapMatches(
+    _options: FindMapMatchesOptions,
+  ): Promise<FindMapMatchesResult> {
+    return { rows: [] };
   }
 
   async findActiveStartingInWindow(

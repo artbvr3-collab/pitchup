@@ -27,7 +27,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 
 import { Button } from "@/src/ui/components/button";
@@ -108,6 +108,7 @@ function statesEqual(a: SheetAppliedState, b: SheetAppliedState): boolean {
 export function MoreFiltersSheet(props: MoreFiltersSheetProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const savedLocation = useSavedLocation();
 
   const [draft, setDraft] = React.useState<SheetAppliedState>(props.applied);
@@ -137,7 +138,8 @@ export function MoreFiltersSheet(props: MoreFiltersSheetProps) {
     setOrDelete(next, "booked", draft.fieldBookedOnly ? "1" : null);
     next.delete("cursor"); // filter change → page-1 reset
     const qs = next.toString();
-    router.replace(qs ? `/games?${qs}` : "/games", { scroll: false });
+    const base = pathname.startsWith("/map") ? "/map" : "/games";
+    router.replace(qs ? `${base}?${qs}` : base, { scroll: false });
     props.onClose();
   };
 

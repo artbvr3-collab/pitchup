@@ -31,7 +31,7 @@ export const runtime = "nodejs";
 // guests too (spec personal.md "/users/:id"). It also serves a unified
 // "no longer on PITCHUP" page for banned / deleted / 404 — that's a
 // public render, not a redirect.
-const PUBLIC_PATHS: readonly string[] = ["/", "/login", "/design", "/games"];
+const PUBLIC_PATHS: readonly string[] = ["/", "/login", "/design", "/games", "/map"];
 const PUBLIC_PREFIXES: readonly string[] = ["/legal/", "/design/", "/users/"];
 
 // Paths a signed-in user *without* a DB row may access without being bounced

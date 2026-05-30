@@ -49,7 +49,7 @@ import { PollingHttpError, usePolling } from "@/src/ui/hooks/use-polling";
 import { UpdatesPanel } from "./updates-panel";
 
 /** Routes where the signed-in TopBar shows and the global poll runs. */
-const ACTIVE_PREFIXES = ["/my-matches", "/me", "/games"];
+const ACTIVE_PREFIXES = ["/my-matches", "/me", "/games", "/map"];
 
 export function SignedInChrome() {
   const pathname = usePathname();

@@ -79,6 +79,10 @@ class FakeMatchRepository implements MatchRepository {
   async findActiveStartingInWindow(): Promise<readonly never[]> {
     return [];
   }
+
+  async findMapMatches(): Promise<{ rows: readonly never[] }> {
+    return { rows: [] };
+  }
 }
 
 class FakeVenueRepository implements VenueRepository {
