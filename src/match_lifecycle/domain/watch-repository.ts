@@ -112,4 +112,21 @@ export interface WatchRepository {
    * via `MatchRepository.findByIds`.
    */
   listMatchIdsForUser(userId: UserId): Promise<readonly MatchId[]>;
+
+  /**
+   * Inbox TTL cron (Layer 7b, 03:00 Europe/Prague) safety sweep: DELETE every
+   * Watch row whose `match.start_time` is strictly less than `beforeStartTime`.
+   * Returns deleted count.
+   *
+   * Primary Watch cleanup at match-start time lives in `AutoRejectPendingService`
+   * (cron #3, every 5 min — drops Watch in the same batch as the pending
+   * auto-reject per spec match.md §434). This method is the once-daily safety
+   * net for the case where the 5-min cron is paused or skips a run.
+   *
+   * Unlocked — same rationale as `notifyWatching`'s `deleteAllForMatch`: cron
+   * sweeps don't take the advisory lock (no per-match invariant to preserve;
+   * the deleted rows are technical debris and no surviving user is reading
+   * them — the match's `start_time` has passed by >24h).
+   */
+  deleteForMatchesStartingBefore(beforeStartTime: Date): Promise<number>;
 }

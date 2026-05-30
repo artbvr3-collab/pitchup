@@ -100,4 +100,11 @@ export class PrismaWatchRepository implements WatchRepository {
     });
     return rows.map((r) => asMatchId(r.matchId));
   }
+
+  async deleteForMatchesStartingBefore(beforeStartTime: Date): Promise<number> {
+    const res = await this.prisma.watch.deleteMany({
+      where: { match: { startTime: { lt: beforeStartTime } } },
+    });
+    return res.count;
+  }
 }

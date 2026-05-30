@@ -34,6 +34,7 @@ import type {
   NotificationRow,
 } from "@/src/notifications/domain/notification";
 import type { NotificationRepository } from "@/src/notifications/domain/notification-repository";
+import type { ReminderSentRepository } from "@/src/notifications/domain/reminder-sent-repository";
 import type { TransactionClient } from "@/src/shared/db/types";
 
 import {
@@ -489,6 +490,15 @@ export class FakeWatchRepository implements WatchRepository {
     }
     return out;
   }
+
+  /** Records cutoff for assertion; returns the preconfigured count. */
+  public deleteForMatchesStartingBeforeCalls: Date[] = [];
+  public deleteForMatchesStartingBeforeResult = 0;
+
+  async deleteForMatchesStartingBefore(beforeStartTime: Date): Promise<number> {
+    this.deleteForMatchesStartingBeforeCalls.push(beforeStartTime);
+    return this.deleteForMatchesStartingBeforeResult;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -499,6 +509,10 @@ export class FakeNotificationRepository implements NotificationRepository {
   /** Every inserted row (insert + insertMany flattened) in call order. */
   public inserted: NewNotification[] = [];
   public markAllReadCalls: string[] = [];
+  /** Cutoffs passed to deleteOlderThan (Layer 7b InboxTtlService). */
+  public deleteOlderThanCalls: Date[] = [];
+  /** Configurable result for deleteOlderThan; defaults to 0. */
+  public deleteOlderThanResult = 0;
   private store: NotificationRow[] = [];
 
   async insert(n: NewNotification, _tx: TransactionClient): Promise<void> {
@@ -519,8 +533,25 @@ export class FakeNotificationRepository implements NotificationRepository {
   async markAllRead(userId: string): Promise<void> {
     this.markAllReadCalls.push(userId);
   }
-  async deleteOlderThan(): Promise<number> {
-    return 0;
+  async deleteOlderThan(cutoff: Date): Promise<number> {
+    this.deleteOlderThanCalls.push(cutoff);
+    return this.deleteOlderThanResult;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ReminderSentRepository (Layer 7b)
+// ---------------------------------------------------------------------------
+
+export class FakeReminderSentRepository implements ReminderSentRepository {
+  /** Cutoffs passed to deleteForMatchesStartingBefore (InboxTtlService). */
+  public deleteForMatchesStartingBeforeCalls: Date[] = [];
+  /** Configurable result; defaults to 0. */
+  public deleteForMatchesStartingBeforeResult = 0;
+
+  async deleteForMatchesStartingBefore(beforeStartTime: Date): Promise<number> {
+    this.deleteForMatchesStartingBeforeCalls.push(beforeStartTime);
+    return this.deleteForMatchesStartingBeforeResult;
   }
 }
 
