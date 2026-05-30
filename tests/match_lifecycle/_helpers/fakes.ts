@@ -30,6 +30,11 @@ import type {
   ListChatMessagesForFeedOptions,
 } from "@/src/chat/domain/chat-message-repository";
 import type {
+  ChatMessageCreatedEvent,
+  ChatMessageDeletedEvent,
+  ChatRealtimePublisher,
+} from "@/src/chat/domain/chat-realtime-publisher";
+import type {
   EmailMessage,
   EmailSender,
 } from "@/src/notifications/domain/email-sender";
@@ -841,5 +846,42 @@ export class FakeEmailSender implements EmailSender {
       throw new Error("FakeEmailSender: simulated send failure");
     }
     this.sent.push(message);
+  }
+}
+
+/**
+ * Fake ChatRealtimePublisher — records published events and can simulate a
+ * transport failure (best-effort swallow path, ADR-0005). Mirrors
+ * FakeEmailSender. The real adapter publishes to Ably; here we only assert the
+ * service calls the port with the correct payload and survives a throw.
+ */
+export class FakeChatRealtimePublisher implements ChatRealtimePublisher {
+  readonly created: { matchId: string; event: ChatMessageCreatedEvent }[] = [];
+  readonly deleted: { matchId: string; event: ChatMessageDeletedEvent }[] = [];
+  private failAlways = false;
+
+  /** Throw on every publish (transport outage / best-effort swallow path). */
+  setFailAlways(value = true): void {
+    this.failAlways = value;
+  }
+
+  async publishMessageCreated(
+    matchId: string,
+    event: ChatMessageCreatedEvent,
+  ): Promise<void> {
+    if (this.failAlways) {
+      throw new Error("FakeChatRealtimePublisher: simulated publish failure");
+    }
+    this.created.push({ matchId, event });
+  }
+
+  async publishMessageDeleted(
+    matchId: string,
+    event: ChatMessageDeletedEvent,
+  ): Promise<void> {
+    if (this.failAlways) {
+      throw new Error("FakeChatRealtimePublisher: simulated publish failure");
+    }
+    this.deleted.push({ matchId, event });
   }
 }

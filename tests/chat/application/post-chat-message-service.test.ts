@@ -25,6 +25,7 @@ import { asMatchId } from "@/src/match_lifecycle/domain/match";
 
 import {
   FakeChatMessageRepository,
+  FakeChatRealtimePublisher,
   FakeJoinRequestRepository,
   FakeMatchRepository,
   OTHER_PLAYER_ID,
@@ -38,9 +39,15 @@ function makeService() {
   const matchRepo = new FakeMatchRepository();
   const joinRepo = new FakeJoinRequestRepository();
   const chatRepo = new FakeChatMessageRepository();
+  const publisher = new FakeChatRealtimePublisher();
   matchRepo.put(makeMatch());
-  const service = new PostChatMessageService(matchRepo, joinRepo, chatRepo);
-  return { service, matchRepo, joinRepo, chatRepo };
+  const service = new PostChatMessageService(
+    matchRepo,
+    joinRepo,
+    chatRepo,
+    publisher,
+  );
+  return { service, matchRepo, joinRepo, chatRepo, publisher };
 }
 
 describe("PostChatMessageService", () => {
@@ -110,6 +117,7 @@ describe("PostChatMessageService", () => {
       matchRepo,
       new FakeJoinRequestRepository(),
       new FakeChatMessageRepository(),
+      new FakeChatRealtimePublisher(),
     );
 
     await expect(
@@ -201,5 +209,58 @@ describe("PostChatMessageService", () => {
     });
     const row = [...chatRepo.rows.values()][0]!;
     expect(row.text).toBe("hello world");
+  });
+
+  // ---------------------------------------------------------------------------
+  // Realtime fan-out (Layer 5.5 — ADR-0005)
+  // ---------------------------------------------------------------------------
+
+  it("publishes message_created with the spec payload (id, author_id, text, created_at)", async () => {
+    const { service, publisher } = makeService();
+
+    const row = await service.execute({
+      matchId: SEED_MATCH_ID,
+      authorId: SEED_CAPTAIN_ID,
+      text: "  realtime please  ",
+    });
+
+    expect(publisher.created).toHaveLength(1);
+    const { matchId, event } = publisher.created[0]!;
+    expect(matchId).toBe(SEED_MATCH_ID);
+    expect(event).toEqual({
+      id: row.id,
+      author_id: SEED_CAPTAIN_ID,
+      text: "realtime please", // trimmed — same as persisted
+      created_at: row.createdAt.toISOString(),
+    });
+  });
+
+  it("does NOT publish when the role gate rejects (no orphan fan-out)", async () => {
+    const { service, publisher } = makeService();
+
+    await expect(
+      service.execute({
+        matchId: SEED_MATCH_ID,
+        authorId: OTHER_PLAYER_ID,
+        text: "Can I post?",
+      }),
+    ).rejects.toBeInstanceOf(ChatForbiddenError);
+
+    expect(publisher.created).toHaveLength(0);
+  });
+
+  it("swallows a publish failure — still returns the persisted row (best-effort)", async () => {
+    const { service, chatRepo, publisher } = makeService();
+    publisher.setFailAlways();
+
+    const result = await service.execute({
+      matchId: SEED_MATCH_ID,
+      authorId: SEED_CAPTAIN_ID,
+      text: "transport is down",
+    });
+
+    // The row is persisted and returned despite the transport throwing.
+    expect(chatRepo.rows.size).toBe(1);
+    expect(result.text).toBe("transport is down");
   });
 });

@@ -22,6 +22,7 @@ import { asUserId } from "@/src/auth/domain/user";
 
 import {
   FakeChatMessageRepository,
+  FakeChatRealtimePublisher,
   FakeMatchRepository,
   SEED_CAPTAIN_ID,
   SEED_MATCH_ID,
@@ -48,9 +49,10 @@ function makeSeededMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
 function makeService() {
   const matchRepo = new FakeMatchRepository();
   const chatRepo = new FakeChatMessageRepository();
+  const publisher = new FakeChatRealtimePublisher();
   matchRepo.put(makeMatch());
-  const service = new DeleteChatMessageService(matchRepo, chatRepo);
-  return { service, matchRepo, chatRepo };
+  const service = new DeleteChatMessageService(matchRepo, chatRepo, publisher);
+  return { service, matchRepo, chatRepo, publisher };
 }
 
 describe("DeleteChatMessageService", () => {
@@ -176,7 +178,11 @@ describe("DeleteChatMessageService", () => {
     const matchRepo = new FakeMatchRepository();
     matchRepo.put(makeMatch({ cancelledAt: new Date("2026-05-26T09:00:00Z") }));
     const chatRepo = new FakeChatMessageRepository();
-    const service = new DeleteChatMessageService(matchRepo, chatRepo);
+    const service = new DeleteChatMessageService(
+      matchRepo,
+      chatRepo,
+      new FakeChatRealtimePublisher(),
+    );
 
     const msg = makeSeededMessage();
     chatRepo.seed(msg);
@@ -188,5 +194,55 @@ describe("DeleteChatMessageService", () => {
 
     // Should succeed — no ChatFrozenError
     expect(result.deletedAt).toEqual(NOW);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Realtime fan-out (Layer 5.5 — ADR-0005)
+  // ---------------------------------------------------------------------------
+
+  it("publishes message_deleted with the spec payload (id, deleted_at)", async () => {
+    const { service, chatRepo, publisher } = makeService();
+    const msg = makeSeededMessage();
+    chatRepo.seed(msg);
+
+    await service.execute(
+      { matchId: SEED_MATCH_ID, messageId: msg.id, viewerId: SEED_CAPTAIN_ID },
+      NOW,
+    );
+
+    expect(publisher.deleted).toHaveLength(1);
+    const { matchId, event } = publisher.deleted[0]!;
+    expect(matchId).toBe(SEED_MATCH_ID);
+    expect(event).toEqual({ id: msg.id, deleted_at: NOW.toISOString() });
+  });
+
+  it("does NOT publish when the captain gate rejects (non-captain)", async () => {
+    const { service, chatRepo, publisher } = makeService();
+    const msg = makeSeededMessage();
+    chatRepo.seed(msg);
+
+    await expect(
+      service.execute(
+        { matchId: SEED_MATCH_ID, messageId: msg.id, viewerId: SEED_PLAYER_ID },
+        NOW,
+      ),
+    ).rejects.toBeInstanceOf(ChatForbiddenError);
+
+    expect(publisher.deleted).toHaveLength(0);
+  });
+
+  it("swallows a publish failure — still returns the soft-deleted row", async () => {
+    const { service, chatRepo, publisher } = makeService();
+    const msg = makeSeededMessage();
+    chatRepo.seed(msg);
+    publisher.setFailAlways();
+
+    const result = await service.execute(
+      { matchId: SEED_MATCH_ID, messageId: msg.id, viewerId: SEED_CAPTAIN_ID },
+      NOW,
+    );
+
+    expect(result.deletedAt).toEqual(NOW);
+    expect(chatRepo.rows.get(msg.id)!.deletedAt).toEqual(NOW);
   });
 });

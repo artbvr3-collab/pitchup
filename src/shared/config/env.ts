@@ -29,6 +29,16 @@ const EnvSchema = z.object({
   EMAIL_TRANSPORT: z.enum(["resend", "console"]).optional(),
   RESEND_API_KEY: z.string().optional(),
   RESEND_FROM: z.string().optional(),
+  // Layer 5.5 realtime chat (Ably) — both optional. Absent → the chat realtime
+  // publisher resolves to the no-op adapter and the client subscribe hook
+  // no-ops; chat still works on polling. See ADR-0005.
+  //   - ABLY_API_KEY: server-side full key, used by AblyChatRealtimePublisher
+  //     for fan-out. The client NEVER reads this.
+  //   - NEXT_PUBLIC_ABLY_SUBSCRIBE_KEY: subscribe-only key, shipped in the
+  //     client bundle. The hook reads it via process.env directly (this file
+  //     is server-only); declared here for startup validation + .env.example.
+  ABLY_API_KEY: z.string().optional(),
+  NEXT_PUBLIC_ABLY_SUBSCRIBE_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

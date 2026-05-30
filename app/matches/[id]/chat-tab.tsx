@@ -128,7 +128,13 @@ function MessageRow({
   isOwn: boolean;
   matchId: string;
 }) {
-  const [deleted, setDeleted] = useState(message.deleted_at !== null);
+  // Derive `deleted` from the prop so a deletion arriving via poll OR the
+  // Layer 5.5 realtime overlay is visible to NON-captain viewers too. The
+  // local flag is only the captain's optimistic feedback before the round-trip
+  // (without the prop-derive, a one-shot useState would never see a deletion
+  // pushed in by someone else — a latent Layer 5 bug surfaced by realtime).
+  const [locallyDeleted, setLocallyDeleted] = useState(false);
+  const deleted = message.deleted_at !== null || locallyDeleted;
   const [busy, setBusy] = useState(false);
   const author = resolveAuthor(message.author);
   const time = new Date(message.created_at).toLocaleTimeString("en-GB", {
@@ -152,7 +158,7 @@ function MessageRow({
         alert(`Delete failed: ${body?.code ?? res.status}`);
         return;
       }
-      setDeleted(true);
+      setLocallyDeleted(true);
     } finally {
       setBusy(false);
     }

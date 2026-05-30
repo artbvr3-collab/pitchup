@@ -36,10 +36,17 @@ import { computeCta } from "@/src/match_lifecycle/domain/compute-cta";
 import type { ViewerRole } from "@/src/match_lifecycle/domain/compute-cta";
 import type { MatchStatus } from "@/src/match_lifecycle/domain/match-status";
 import type {
+  MatchStateLineup,
   MatchStateMessage,
+  MatchStateMessageAuthor,
   MatchStateResponse,
 } from "@/src/match_lifecycle/application/dto/match-state";
+import type {
+  ChatMessageCreatedEvent,
+  ChatMessageDeletedEvent,
+} from "@/src/chat/domain/chat-realtime-publisher";
 import { usePolling, PollingHttpError } from "@/src/ui/hooks/use-polling";
+import { useAblyChannel } from "@/src/ui/hooks/use-ably-channel";
 
 import { CaptainSheet } from "./captain-sheet";
 import { ChatTab } from "./chat-tab";
@@ -144,6 +151,37 @@ export function MatchShell(props: MatchShellProps) {
       if (err instanceof PollingHttpError && err.status === 401) {
         router.push("/games");
       }
+    },
+  });
+
+  // Realtime chat overlay (Layer 5.5 — ADR-0005). Subscribes ONLY while the
+  // Chat tab is open and the viewer isn't pending — a WIDER set than polling
+  // (captain + accepted + watching + guest, spec §244). New/deleted messages
+  // arrive with <1s latency; polling stays the source of truth. No-ops when
+  // the subscribe key is absent.
+  useAblyChannel({
+    matchId: props.matchId,
+    enabled: activeTab === "chat" && props.viewerRole !== "pending",
+    viewerId: props.viewerId,
+    onMessageCreated: (event: ChatMessageCreatedEvent) =>
+      setState((prev) => applyRealtimeCreated(prev, event)),
+    onMessageDeleted: (event: ChatMessageDeletedEvent) =>
+      setState((prev) =>
+        applyRealtimeDeleted(prev, event.id, event.deleted_at),
+      ),
+    onReconnect: () => {
+      // Gap-fill via the same poll path (spec §246). Independent of `canPoll`
+      // — watching/guest gap-fill too, even though they don't poll on a timer.
+      void fetch(pollUrl, { cache: "no-store", credentials: "same-origin" })
+        .then((res) => (res.ok ? (res.json() as Promise<MatchStateResponse>) : null))
+        .then((payload) => {
+          if (!payload) return;
+          setState((prev) => mergePollPayload(prev, payload));
+          if (payload.deleted) router.push("/games");
+        })
+        .catch(() => {
+          // Ignore — the next poll or realtime event recovers.
+        });
     },
   });
 
@@ -266,6 +304,72 @@ function mergeOneMessage(
     ...prev,
     messages: [...prev.messages.filter((m) => m.id !== message.id), message],
   };
+}
+
+// ---------------------------------------------------------------------------
+// Realtime appliers (Layer 5.5). The Ably payload carries `author_id` (raw),
+// not the resolved author object — we resolve it against the lineup snapshot
+// we already hold (spec §235). Dedup is by message id; polling reconciles
+// anything we couldn't resolve.
+// ---------------------------------------------------------------------------
+
+function applyRealtimeCreated(
+  prev: MatchStateResponse,
+  event: ChatMessageCreatedEvent,
+): MatchStateResponse {
+  // Already present (own optimistic insert, or a poll beat the push) → keep
+  // the existing row (it may carry a richer / authoritative author).
+  if (prev.messages.some((m) => m.id === event.id)) return prev;
+
+  const message: MatchStateMessage = {
+    id: event.id,
+    text: event.text,
+    created_at: event.created_at,
+    deleted_at: null,
+    author: resolveAuthorFromLineup(prev.lineup, event.author_id),
+  };
+  const merged = [...prev.messages, message].sort((a, b) =>
+    a.created_at.localeCompare(b.created_at),
+  );
+  return { ...prev, messages: merged };
+}
+
+function applyRealtimeDeleted(
+  prev: MatchStateResponse,
+  id: string,
+  deletedAt: string,
+): MatchStateResponse {
+  let changed = false;
+  const messages = prev.messages.map((m) => {
+    if (m.id === id && m.deleted_at === null) {
+      changed = true;
+      return { ...m, deleted_at: deletedAt };
+    }
+    return m;
+  });
+  // Unknown id (we joined after the message was posted) → ignore; the next
+  // poll / gap-fill brings the row already flagged deleted. Idempotent on a
+  // re-delivered event (deleted_at already set → no change).
+  return changed ? { ...prev, messages } : prev;
+}
+
+/**
+ * Resolve a chat `author_id` against the lineup we hold. Authors of chat
+ * messages are always the captain or an accepted player — both present in
+ * everyone's lineup snapshot. Returns `null` only for the rare transient where
+ * a just-approved player posts before our lineup updates; the UI renders that
+ * as `[Removed user]` for one poll cycle until reconciliation. (Spec §235
+ * accepts this — the realtime payload deliberately omits author resolution.)
+ */
+function resolveAuthorFromLineup(
+  lineup: MatchStateLineup,
+  authorId: string,
+): MatchStateMessageAuthor | null {
+  if (lineup.captain.id === authorId) return lineup.captain;
+  for (const player of lineup.accepted) {
+    if (player.user.id === authorId) return player.user;
+  }
+  return null;
 }
 
 function wireToDomainStatus(

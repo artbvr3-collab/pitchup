@@ -25,12 +25,15 @@
  *   - No advisory lock (chat-write exception, spec §546). The cross-match
  *     guard is enough — `withMatchLock` would not protect against the
  *     non-existent invariant being violated here.
- *   - `// TODO(Layer 5.5)` realtime publish marker placed AFTER persistence
- *     for the same reason as in PostChatMessageService.
+ *   - Realtime fan-out (Layer 5.5 — ADR-0005) happens AFTER persistence,
+ *     best-effort (try/catch + log) for the same reason as in
+ *     PostChatMessageService.
  * RELATED DOCS:
  *   - docs/spec/pitchup-spec-match.md → §225 (captain delete on Cancelled),
+ *     §236 (message_deleted fan-out),
  *     §363 ("Captain's chat permissions → delete any message"),
  *     "Per-endpoint checklist" → DELETE /messages/:id
+ *   - docs/adr/0005-ably-realtime-chat-transport.md
  */
 import { asUserId } from "@/src/auth/domain/user";
 
@@ -43,6 +46,7 @@ import {
   type ChatMessage,
 } from "../domain/chat-message";
 import type { ChatMessageRepository } from "../domain/chat-message-repository";
+import type { ChatRealtimePublisher } from "../domain/chat-realtime-publisher";
 import { ChatForbiddenError, MessageNotFoundError } from "../domain/errors";
 
 export interface DeleteChatMessageServiceInput {
@@ -55,6 +59,7 @@ export class DeleteChatMessageService {
   constructor(
     private readonly matchRepository: MatchRepository,
     private readonly chatMessageRepository: ChatMessageRepository,
+    private readonly realtimePublisher: ChatRealtimePublisher,
   ) {}
 
   async execute(
@@ -87,8 +92,20 @@ export class DeleteChatMessageService {
     // 4. Soft-delete (idempotent — port contract).
     const deleted = await this.chatMessageRepository.softDelete(messageId, now);
 
-    // TODO(Layer 5.5): publish "message_deleted" to Ably channel
-    //   match:{matchId}:chat after commit. See spec match.md §234.
+    // 5. Best-effort realtime fan-out (Layer 5.5 — ADR-0005). After the
+    //    soft-delete is durable. `deletedAt` is non-null post-softDelete (on
+    //    the idempotent path it's the original timestamp); fall back to `now`
+    //    defensively. Failure is logged + swallowed — polling reconciles
+    //    (spec match.md §236).
+    try {
+      await this.realtimePublisher.publishMessageDeleted(matchId, {
+        id: deleted.id,
+        deleted_at: (deleted.deletedAt ?? now).toISOString(),
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console -- best-effort fan-out, no logger module yet.
+      console.error("[chat] best-effort message_deleted publish failed", err);
+    }
 
     return deleted;
   }

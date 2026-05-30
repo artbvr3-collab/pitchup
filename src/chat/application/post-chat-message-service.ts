@@ -27,15 +27,17 @@
  *     player on a cancelled match sees the more informative reason. Per
  *     spec match.md §224 the composer is hidden anyway; this is the
  *     direct-curl path.
- *   - `// TODO(Layer 5.5)` realtime publish marker is recorded as a
- *     side-effect AFTER insert, never inside it — keeps the persisted row
- *     authoritative even if the publish fails (matches the wider "polling
- *     is source of truth" stance from spec §229).
+ *   - Realtime fan-out (Layer 5.5 — ADR-0005) happens AFTER insert, never
+ *     inside it — keeps the persisted row authoritative even if the publish
+ *     fails. The publish is best-effort: wrapped in try/catch + log here so a
+ *     transport hiccup never fails the 200 (polling is source of truth,
+ *     spec §229, §233).
  * RELATED DOCS:
  *   - docs/spec/pitchup-spec-match.md → "Tab Chat", §213 (chat access by
- *     role), §224 (cancelled chat frozen), §546 (no lock), "Per-endpoint
- *     checklist" → POST /messages
+ *     role), §224 (cancelled chat frozen), §546 (no lock), §233-235
+ *     (realtime fan-out), "Per-endpoint checklist" → POST /messages
  *   - docs/spec/pitchup-spec-global.md → "Text field validation"
+ *   - docs/adr/0005-ably-realtime-chat-transport.md
  */
 import { asUserId } from "@/src/auth/domain/user";
 
@@ -49,6 +51,7 @@ import {
   normalizeChatText,
 } from "../domain/chat-message";
 import type { ChatMessageRepository } from "../domain/chat-message-repository";
+import type { ChatRealtimePublisher } from "../domain/chat-realtime-publisher";
 import {
   ChatForbiddenError,
   ChatFrozenError,
@@ -62,6 +65,7 @@ export class PostChatMessageService {
     private readonly matchRepository: MatchRepository,
     private readonly joinRequestRepository: JoinRequestRepository,
     private readonly chatMessageRepository: ChatMessageRepository,
+    private readonly realtimePublisher: ChatRealtimePublisher,
   ) {}
 
   async execute(input: PostChatMessageServiceInput): Promise<ChatMessage> {
@@ -111,9 +115,21 @@ export class PostChatMessageService {
       text: normalised,
     });
 
-    // TODO(Layer 5.5): publish "message_created" to Ably channel
-    //   match:{matchId}:chat after commit. Failure is logged, not surfaced —
-    //   polling delivers the row within 15s. See spec match.md §229, §234.
+    // 6. Best-effort realtime fan-out (Layer 5.5 — ADR-0005). After the row is
+    //    durable. A publish failure is logged and swallowed — the 200 still
+    //    returns the persisted row, and polling delivers it within 15s
+    //    (spec match.md §233-235). Never surface a transport error to the user.
+    try {
+      await this.realtimePublisher.publishMessageCreated(matchId, {
+        id: row.id,
+        author_id: row.authorId,
+        text: row.text,
+        created_at: row.createdAt.toISOString(),
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console -- best-effort fan-out, no logger module yet.
+      console.error("[chat] best-effort message_created publish failed", err);
+    }
 
     return row;
   }

@@ -21,15 +21,18 @@ import {
 
 import { DeleteChatMessageService } from "./application/delete-chat-message-service";
 import { PostChatMessageService } from "./application/post-chat-message-service";
+import { chatRealtimePublisher } from "./infrastructure/chat-realtime-publisher";
 import { chatMessageRepository } from "./infrastructure/repositories";
 
 export const postChatMessageService = new PostChatMessageService(
   matchRepository,
   joinRequestRepository,
   chatMessageRepository,
+  chatRealtimePublisher,
 );
 
 export const deleteChatMessageService = new DeleteChatMessageService(
   matchRepository,
   chatMessageRepository,
+  chatRealtimePublisher,
 );
