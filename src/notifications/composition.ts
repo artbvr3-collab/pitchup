@@ -13,15 +13,18 @@
  *     mirrors match_lifecycle/composition pulling auth + chat repositories.
  * RELATED DOCS: docs/ARCHITECTURE.md §3 (dependency direction), §10 (polling).
  */
+import { userRepository } from "@/src/auth/infrastructure/repositories";
 import {
   joinRequestRepository,
   matchRepository,
   watchRepository,
 } from "@/src/match_lifecycle/infrastructure/repositories";
+import { appBaseUrl } from "@/src/shared/config/env";
 
 import { InboxTtlService } from "./application/inbox-ttl-service";
 import { MorningReminderService } from "./application/morning-reminder-service";
 import { UpdatesStateService } from "./application/updates-state-service";
+import { emailSender } from "./infrastructure/email-sender";
 import {
   notificationRepository,
   reminderSentRepository,
@@ -45,4 +48,7 @@ export const morningReminderService = new MorningReminderService({
   joinRequests: joinRequestRepository,
   notifications: notificationRepository,
   reminders: reminderSentRepository,
+  users: userRepository,
+  emailSender,
+  appBaseUrl,
 });

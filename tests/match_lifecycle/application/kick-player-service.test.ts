@@ -24,15 +24,18 @@ import {
 import { asMatchId } from "@/src/match_lifecycle/domain/match";
 
 import {
+  FakeEmailSender,
   FakeJoinRequestRepository,
   FakeMatchRepository,
   FakeNotificationRepository,
+  FakeUserRepository,
   FakeWatchRepository,
   OTHER_PLAYER_ID,
   SEED_CAPTAIN_ID,
   SEED_MATCH_ID,
   SEED_PLAYER_ID,
   makeMatch,
+  makeUser,
 } from "../_helpers/fakes";
 import { NOTIFICATION_BODIES } from "@/src/notifications/domain/notification-bodies";
 
@@ -42,15 +45,33 @@ vi.mock("@/src/shared/db/with-match-lock", () => ({
 }));
 
 const NOW = new Date("2026-05-26T12:00:00Z");
+const APP_URL = "https://pitchup.test";
 
 function makeService(matchOverrides = {}) {
   const matchRepo = new FakeMatchRepository();
   const joinRepo = new FakeJoinRequestRepository();
   const watchRepo = new FakeWatchRepository();
   const notifications = new FakeNotificationRepository();
+  const users = new FakeUserRepository();
+  const email = new FakeEmailSender();
   matchRepo.put(makeMatch(matchOverrides));
-  const service = new KickPlayerService(matchRepo, joinRepo, watchRepo, notifications);
-  return { service, matchRepo, joinRepo, watchRepo, notifications };
+  // Kicked player defaults to email-eligible; gating tests re-seed.
+  users.seed(
+    makeUser({ id: SEED_PLAYER_ID, name: "Player", emailNotifications: true }),
+  );
+  users.seed(
+    makeUser({ id: OTHER_PLAYER_ID, name: "Other", emailNotifications: true }),
+  );
+  const service = new KickPlayerService(
+    matchRepo,
+    joinRepo,
+    watchRepo,
+    notifications,
+    users,
+    email,
+    APP_URL,
+  );
+  return { service, matchRepo, joinRepo, watchRepo, notifications, users, email };
 }
 
 describe("KickPlayerService", () => {
@@ -305,5 +326,58 @@ describe("KickPlayerService", () => {
     // Watch row, if any, would only fire on isFull true→false flip — not
     // applicable here since we started non-full. Helper short-circuited.
     expect(watchRepo.bulkDeleted).toEqual([]);
+  });
+});
+
+describe("KickPlayerService — email (Layer 7b)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  async function kick(svc: ReturnType<typeof makeService>) {
+    const jr = svc.joinRepo.seed({
+      matchId: SEED_MATCH_ID,
+      userId: SEED_PLAYER_ID,
+      status: "accepted",
+    });
+    return svc.service.execute(
+      { matchId: SEED_MATCH_ID, captainId: SEED_CAPTAIN_ID, requestId: jr.id },
+      NOW,
+    );
+  }
+
+  it("sends a kicked email to an opted-in player with the match deep link", async () => {
+    const svc = makeService();
+    await kick(svc);
+
+    expect(svc.email.sent).toHaveLength(1);
+    const msg = svc.email.sent[0]!;
+    expect(msg.to).toBe(`${SEED_PLAYER_ID}@example.com`);
+    expect(msg.subject).toBe("You were removed from a match");
+    expect(msg.text).toContain(`${APP_URL}/matches/${SEED_MATCH_ID}`);
+  });
+
+  it("does NOT email a player who opted out", async () => {
+    const svc = makeService();
+    svc.users.seed(
+      makeUser({ id: SEED_PLAYER_ID, name: "Player", emailNotifications: false }),
+    );
+    await kick(svc);
+    expect(svc.email.sent).toHaveLength(0);
+    // In-app inbox is never gated.
+    expect(
+      svc.notifications.inserted.some((n) => n.type === "kicked"),
+    ).toBe(true);
+  });
+
+  it("best-effort: a send failure does NOT roll back the kick", async () => {
+    const svc = makeService();
+    svc.email.setFailAlways();
+
+    const result = await kick(svc);
+
+    expect(result.status).toBe("kicked");
+    expect(
+      svc.notifications.inserted.some((n) => n.type === "kicked"),
+    ).toBe(true);
+    expect(svc.email.sent).toHaveLength(0);
   });
 });

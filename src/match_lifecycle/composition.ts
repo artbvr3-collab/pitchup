@@ -17,7 +17,9 @@
  */
 import { userRepository } from "@/src/auth/infrastructure/repositories";
 import { chatMessageRepository } from "@/src/chat/infrastructure/repositories";
+import { emailSender } from "@/src/notifications/infrastructure/email-sender";
 import { notificationRepository } from "@/src/notifications/infrastructure/repositories";
+import { appBaseUrl } from "@/src/shared/config/env";
 
 import { ApproveJoinRequestService } from "./application/approve-join-request-service";
 import { AutoRejectPendingService } from "./application/auto-reject-pending-service";
@@ -64,6 +66,9 @@ export const approveJoinRequestService = new ApproveJoinRequestService(
   joinRequestRepository,
   watchRepository,
   notificationRepository,
+  userRepository,
+  emailSender,
+  appBaseUrl,
 );
 
 export const rejectJoinRequestService = new RejectJoinRequestService(
@@ -110,6 +115,9 @@ export const kickPlayerService = new KickPlayerService(
   joinRequestRepository,
   watchRepository,
   notificationRepository,
+  userRepository,
+  emailSender,
+  appBaseUrl,
 );
 
 export const cancelMatchService = new CancelMatchService(

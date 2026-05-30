@@ -28,3 +28,4 @@ See [0000-template.md](./0000-template.md). Copy, increment number, fill in.
 | 0001 | [REST Route Handlers as the default for mutations](./0001-rest-routes-over-server-actions.md) | Accepted | 2026-05-24 |
 | 0002 | [Throw typed exceptions from an `AppError` hierarchy](./0002-throw-with-app-error-hierarchy.md) | Accepted | 2026-05-24 |
 | 0003 | [Repository ports in `domain/` with Prisma adapters in `infrastructure/`](./0003-repository-port-pattern-with-prisma.md) | Accepted | 2026-05-24 |
+| 0004 | [Resend for transactional email, with channel-specific send semantics](./0004-resend-email-with-channel-specific-send-semantics.md) | Accepted | 2026-05-30 |

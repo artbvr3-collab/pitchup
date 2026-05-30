@@ -24,13 +24,24 @@
  * NOTE (Layer 7 — Notifications):
  *   - Inserts `notification(type='approved', body="✓ You're in")` for
  *     request.userId INSIDE this transaction (spec match.md → "Write
- *     ordering"). Email for approve is deferred to Layer 7b (EmailSender).
+ *     ordering"). The `approved` email (Layer 7b) is sent AFTER the locked tx
+ *     commits, best-effort: a Resend failure is logged but never rolls back
+ *     the approve (it is not idempotent / not cron-retried) and the lock is
+ *     never held across the HTTP call. Gated by `email_notifications`. See
+ *     ADR-0004 "Send semantics".
  * RELATED DOCS:
  *   - docs/spec/pitchup-spec-match.md → "Approve flow", "Per-endpoint
  *     checklist" → POST /approve, "Race scenarios — resolution matrix"
  *   - docs/spec/pitchup-spec-global.md → "Total spots — hard cap on approve"
  */
-import { asUserId } from "@/src/auth/domain/user";
+import { asUserId, type UserId } from "@/src/auth/domain/user";
+import type { UserRepository } from "@/src/auth/domain/user-repository";
+import {
+  buildApprovedEmail,
+  emailGateOpen,
+  matchUrl,
+} from "@/src/notifications/domain/email-bodies";
+import type { EmailSender } from "@/src/notifications/domain/email-sender";
 import { NOTIFICATION_BODIES } from "@/src/notifications/domain/notification-bodies";
 import type { NotificationRepository } from "@/src/notifications/domain/notification-repository";
 import { withMatchLock } from "@/src/shared/db/with-match-lock";
@@ -45,7 +56,7 @@ import {
 } from "../domain/errors";
 import { asJoinRequestId, type JoinRequest } from "../domain/join-request";
 import type { JoinRequestRepository } from "../domain/join-request-repository";
-import { asMatchId } from "../domain/match";
+import { asMatchId, type MatchId } from "../domain/match";
 import type { MatchRepository } from "../domain/match-repository";
 import { deriveMatchStatus } from "../domain/match-status";
 import { computeSlots } from "../domain/slot-math";
@@ -62,6 +73,9 @@ export class ApproveJoinRequestService {
     private readonly joinRequestRepository: JoinRequestRepository,
     private readonly watchRepository: WatchRepository,
     private readonly notificationRepository: NotificationRepository,
+    private readonly userRepository: UserRepository,
+    private readonly emailSender: EmailSender,
+    private readonly appBaseUrl: string,
   ) {}
 
   async execute(
@@ -72,7 +86,7 @@ export class ApproveJoinRequestService {
     const captainId = asUserId(input.captainId);
     const requestId = asJoinRequestId(input.requestId);
 
-    return withMatchLock(matchId, async (tx) => {
+    const recipientId = await withMatchLock(matchId, async (tx) => {
       const match = await this.matchRepository.findById(matchId, tx);
       if (!match) throw new MatchNotFoundError({ matchId });
 
@@ -151,8 +165,30 @@ export class ApproveJoinRequestService {
         tx,
       );
 
-      return { status: "accepted" as const };
+      return request.userId;
     });
+
+    // Post-commit, best-effort email (ADR-0004). The approve — including the
+    // in-app inbox row — is already committed; a Resend hiccup must not roll it
+    // back, and we never hold the advisory lock across an HTTP call.
+    await this.sendApprovedEmail(recipientId, matchId);
+
+    return { status: "accepted" as const };
+  }
+
+  private async sendApprovedEmail(
+    userId: UserId,
+    matchId: MatchId,
+  ): Promise<void> {
+    try {
+      const user = await this.userRepository.findById(userId);
+      if (!user || !emailGateOpen(user)) return;
+      await this.emailSender.send(
+        buildApprovedEmail(user.email, matchUrl(this.appBaseUrl, matchId)),
+      );
+    } catch (err) {
+      console.error("[approve] best-effort approved-email send failed", err);
+    }
   }
 }
 

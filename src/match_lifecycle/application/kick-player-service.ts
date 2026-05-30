@@ -44,8 +44,11 @@
  *     match")` for request.userId INSIDE the same `tx` (spec "Write
  *     ordering"). Watcher / captain spot_opened fan-out is handled by
  *     `notifyWatching` (port passed through the ports object).
- *   - Email to the kicked player (Kick is on the email allowlist) is deferred
- *     to Layer 7b (EmailSender port) — TODO(Layer 7b) marker in the body.
+ *   - Email to the kicked player (Kick is on the email allowlist, spec
+ *     global.md "Notifications") is sent AFTER the locked tx commits,
+ *     best-effort: a Resend failure is logged but never rolls back the kick
+ *     and the lock is never held across the HTTP call. Gated by
+ *     `email_notifications`. See ADR-0004 "Send semantics".
  * RELATED DOCS:
  *   - docs/spec/pitchup-spec-match.md → "Reject / Kick / Leave flows",
  *     "Per-endpoint checklist" → POST /kick, "Race scenarios — resolution
@@ -53,7 +56,14 @@
  *   - docs/spec/pitchup-spec-global.md → "Guests (+N on join)",
  *     "Notifications" (email allowlist)
  */
-import { asUserId } from "@/src/auth/domain/user";
+import { asUserId, type UserId } from "@/src/auth/domain/user";
+import type { UserRepository } from "@/src/auth/domain/user-repository";
+import {
+  buildKickedEmail,
+  emailGateOpen,
+  matchUrl,
+} from "@/src/notifications/domain/email-bodies";
+import type { EmailSender } from "@/src/notifications/domain/email-sender";
 import { NOTIFICATION_BODIES } from "@/src/notifications/domain/notification-bodies";
 import type { NotificationRepository } from "@/src/notifications/domain/notification-repository";
 import { withMatchLock } from "@/src/shared/db/with-match-lock";
@@ -67,7 +77,7 @@ import {
 } from "../domain/errors";
 import { asJoinRequestId, type JoinRequest } from "../domain/join-request";
 import type { JoinRequestRepository } from "../domain/join-request-repository";
-import { asMatchId } from "../domain/match";
+import { asMatchId, type MatchId } from "../domain/match";
 import type { MatchRepository } from "../domain/match-repository";
 import { deriveMatchStatus } from "../domain/match-status";
 import { computeSlots } from "../domain/slot-math";
@@ -92,6 +102,9 @@ export class KickPlayerService {
     private readonly joinRequestRepository: JoinRequestRepository,
     private readonly watchRepository: WatchRepository,
     private readonly notificationRepository: NotificationRepository,
+    private readonly userRepository: UserRepository,
+    private readonly emailSender: EmailSender,
+    private readonly appBaseUrl: string,
   ) {}
 
   async execute(
@@ -102,7 +115,7 @@ export class KickPlayerService {
     const captainId = asUserId(input.captainId);
     const requestId = asJoinRequestId(input.requestId);
 
-    return withMatchLock(matchId, async (tx) => {
+    const lockResult = await withMatchLock(matchId, async (tx) => {
       const match = await this.matchRepository.findById(matchId, tx);
       if (!match) throw new MatchNotFoundError({ matchId });
 
@@ -160,8 +173,6 @@ export class KickPlayerService {
         },
         tx,
       );
-      // TODO(Layer 7b): email send to request.userId via EmailSender port —
-      //   Kick is on the email allowlist (spec global.md "Notifications").
 
       const watch = await notifyWatching(
         {
@@ -179,10 +190,35 @@ export class KickPlayerService {
       );
 
       return {
-        status: "kicked" as const,
+        recipientId: request.userId,
         notifiedWatcherCount: watch.watcherUserIds.length,
       };
     });
+
+    // Post-commit, best-effort email (ADR-0004). The kick — including the
+    // in-app inbox row — is already committed; a Resend failure is logged but
+    // must not roll it back, and the lock is never held across the HTTP call.
+    await this.sendKickedEmail(lockResult.recipientId, matchId);
+
+    return {
+      status: "kicked" as const,
+      notifiedWatcherCount: lockResult.notifiedWatcherCount,
+    };
+  }
+
+  private async sendKickedEmail(
+    userId: UserId,
+    matchId: MatchId,
+  ): Promise<void> {
+    try {
+      const user = await this.userRepository.findById(userId);
+      if (!user || !emailGateOpen(user)) return;
+      await this.emailSender.send(
+        buildKickedEmail(user.email, matchUrl(this.appBaseUrl, matchId)),
+      );
+    } catch (err) {
+      console.error("[kick] best-effort kicked-email send failed", err);
+    }
   }
 }
 

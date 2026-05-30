@@ -10,15 +10,17 @@
  *              ("💬 Match tomorrow").
  *          For every (match, recipient) pair — recipients = captain +
  *          accepted players — the service atomically writes a
- *          `reminder_sent` ledger row and (only on successful INSERT) an
- *          in-app `notification` row. A future commit adds the email send
- *          via Resend (TODO marker below) which respects
- *          `users.email_notifications`.
+ *          `reminder_sent` ledger row, (only on successful INSERT) an in-app
+ *          `notification` row, AND (Layer 7b) a Resend email — all inside one
+ *          `withTransaction`. The email respects `users.email_notifications`
+ *          (Resend transport selected at composition; see ADR-0004).
  * LAYER: application (cross-context: uses match_lifecycle's MatchRepository
  *        and JoinRequestRepository, mirror of InboxTtlService / UpdatesStateService).
  * DEPENDENCIES (ports): MatchRepository + JoinRequestRepository (match_lifecycle),
  *                       NotificationRepository + ReminderSentRepository (own
- *                       context). Uses `withTransaction` for per-pair atomicity.
+ *                       context), UserRepository (auth — recipient email + opt-in
+ *                       flag) + EmailSender (own context). Uses `withTransaction`
+ *                       for per-pair atomicity.
  * CONSUMED BY: src/notifications/composition.ts, scripts/run-cron.ts (future)
  * INVARIANTS:
  *   - `now` is a method parameter. Production cron passes `new Date()`; the
@@ -45,15 +47,19 @@
  *     short-circuits to `'existed'` and skips the notification. On any
  *     other error the tx rolls back — the ledger is empty, the next run
  *     will retry the same pair.
- *   - Email is deferred (TODO marker below). When Resend ships, it goes
- *     INSIDE the same tx as the ledger + notification INSERT — same
- *     "exactly-once via ledger gate" guarantee. The send must respect
- *     `users.email_notifications` (in-app inbox is never gated; email is).
+ *   - Email goes INSIDE the same tx as the ledger + notification INSERT —
+ *     same "exactly-once via ledger gate" guarantee (a send throw rolls back
+ *     the ledger so the next cron tick retries the pair). Recipients are
+ *     batch-resolved per match (`UserRepository.findByIds`) outside the
+ *     per-pair tx; the send respects `email_notifications` + skips banned /
+ *     deleted (in-app inbox is never gated; email is). See ADR-0004.
  * RELATED DOCS:
  *   - docs/spec/pitchup-spec-match.md → "Cron jobs → Morning-of-match
  *     reminder" (incl. DST edges)
  *   - docs/spec/pitchup-app-map.md → "Cron jobs" + "Notifications" tables
  */
+import type { UserId } from "@/src/auth/domain/user";
+import type { UserRepository } from "@/src/auth/domain/user-repository";
 import type { JoinRequestRepository } from "@/src/match_lifecycle/domain/join-request-repository";
 import { asMatchId } from "@/src/match_lifecycle/domain/match";
 import type { MatchRepository } from "@/src/match_lifecycle/domain/match-repository";
@@ -65,6 +71,12 @@ import {
   todayPrague,
 } from "@/src/shared/time/prague";
 
+import {
+  buildMorningReminderEmail,
+  emailGateOpen,
+  matchUrl,
+} from "../domain/email-bodies";
+import type { EmailSender } from "../domain/email-sender";
 import { NOTIFICATION_BODIES } from "../domain/notification-bodies";
 import type { NotificationRepository } from "../domain/notification-repository";
 import type { ReminderSentRepository } from "../domain/reminder-sent-repository";
@@ -79,6 +91,8 @@ export interface MorningReminderResult {
   readonly remindersSent: number;
   /** Per-pair attempts that hit ON CONFLICT (ledger row already present). */
   readonly alreadySent: number;
+  /** Per-pair attempts that threw (tx rolled back; retried next cron tick). */
+  readonly failed: number;
 }
 
 interface MorningReminderPorts {
@@ -86,6 +100,11 @@ interface MorningReminderPorts {
   readonly joinRequests: JoinRequestRepository;
   readonly notifications: NotificationRepository;
   readonly reminders: ReminderSentRepository;
+  /** Resolves recipient email + opt-in flag for the email gate. */
+  readonly users: UserRepository;
+  readonly emailSender: EmailSender;
+  /** Base URL for the `/matches/:id` deep link in the email body. */
+  readonly appBaseUrl: string;
 }
 
 export class MorningReminderService {
@@ -109,46 +128,73 @@ export class MorningReminderService {
     let recipientsConsidered = 0;
     let remindersSent = 0;
     let alreadySent = 0;
+    let failed = 0;
 
     for (const match of matches) {
       const accepted = await this.ports.joinRequests.listAcceptedForMatch(
         asMatchId(match.id),
       );
       // Captain first (deterministic order helps logs); accepted players follow.
-      const recipientIds: readonly string[] = [
+      const recipientIds: readonly UserId[] = [
         match.captainId,
         ...accepted.map((jr) => jr.userId),
       ];
 
+      // Batch-resolve recipients once per match for the email gate (a plain
+      // read — done OUTSIDE the per-pair tx; opt-in flags don't change mid-run).
+      const recipientUsers = await this.ports.users.findByIds(recipientIds);
+      const usersById = new Map(recipientUsers.map((u) => [u.id as string, u]));
+      const matchLink = matchUrl(this.ports.appBaseUrl, match.id);
+
       for (const userId of recipientIds) {
         recipientsConsidered += 1;
-        const outcome = await withTransaction(async (tx) => {
-          const ledger = await this.ports.reminders.insertIfAbsent(
-            match.id,
-            userId,
-            "morning_reminder",
-            tx,
-          );
-          if (ledger === "existed") return "existed" as const;
-
-          await this.ports.notifications.insert(
-            {
+        let outcome: "inserted" | "existed";
+        try {
+          outcome = await withTransaction(async (tx) => {
+            const ledger = await this.ports.reminders.insertIfAbsent(
+              match.id,
               userId,
-              type: "morning_reminder",
-              matchId: match.id,
-              body,
-            },
-            tx,
+              "morning_reminder",
+              tx,
+            );
+            if (ledger === "existed") return "existed" as const;
+
+            await this.ports.notifications.insert(
+              {
+                userId,
+                type: "morning_reminder",
+                matchId: match.id,
+                body,
+              },
+              tx,
+            );
+
+            // Email INSIDE the same tx (ADR-0004): a throw rolls back the
+            // ledger + inbox so the next cron tick retries this pair —
+            // exactly-once via the ledger gate. Gated by `email_notifications`
+            // (+ not banned / deleted); the in-app inbox row above is
+            // unconditional.
+            const user = usersById.get(userId);
+            if (user && emailGateOpen(user)) {
+              await this.ports.emailSender.send(
+                buildMorningReminderEmail(args.window, user.email, matchLink),
+              );
+            }
+
+            return "inserted" as const;
+          });
+        } catch (err) {
+          // The tx rolled back (the ledger row was not committed), so this
+          // pair is retried on the next cron tick. Swallow + continue so one
+          // failing recipient (e.g. a Resend reject) cannot block the rest of
+          // the run — without the catch, every later pair would be starved.
+          console.error(
+            "[morning-reminder] (match,user) pair failed; retries next tick",
+            err,
           );
-
-          // TODO(Layer 7b email): Resend send goes here, INSIDE the same tx
-          // so the ledger + inbox + email are all-or-nothing. Must respect
-          // `users.email_notifications` (in-app row is unconditional, email
-          // is opt-in per user). Throwing here is fine — the tx rolls back
-          // the ledger + notification, and the next cron run retries.
-
-          return "inserted" as const;
-        });
+          failed += 1;
+          continue;
+        }
 
         if (outcome === "inserted") remindersSent += 1;
         else alreadySent += 1;
@@ -161,6 +207,7 @@ export class MorningReminderService {
       recipientsConsidered,
       remindersSent,
       alreadySent,
+      failed,
     };
   }
 }

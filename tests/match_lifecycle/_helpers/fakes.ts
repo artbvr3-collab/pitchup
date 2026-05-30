@@ -30,6 +30,10 @@ import type {
   ListChatMessagesForFeedOptions,
 } from "@/src/chat/domain/chat-message-repository";
 import type {
+  EmailMessage,
+  EmailSender,
+} from "@/src/notifications/domain/email-sender";
+import type {
   NewNotification,
   NotificationRow,
 } from "@/src/notifications/domain/notification";
@@ -731,17 +735,19 @@ export class FakeChatMessageRepository implements ChatMessageRepository {
 export function makeUser(args: {
   id: UserId;
   name: string;
+  email?: string;
+  emailNotifications?: boolean;
   banned?: boolean;
   deletedAt?: Date | null;
 }): User {
   return {
     id: args.id,
     googleSub: asGoogleSub(`google-sub-${args.id}`),
-    email: `${args.id}@example.com`,
+    email: args.email ?? `${args.id}@example.com`,
     name: args.name,
     avatarUrl: "",
     contactInfo: null,
-    emailNotifications: false,
+    emailNotifications: args.emailNotifications ?? false,
     isAdmin: false,
     banned: args.banned ?? false,
     deletedAt: args.deletedAt ?? null,
@@ -794,5 +800,38 @@ export class FakeUserRepository implements UserRepository {
   async markDeleted(id: UserId): Promise<void> {
     const u = this.users.get(id);
     if (u) this.users.set(id, { ...u, deletedAt: new Date() });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// EmailSender (Layer 7b)
+// ---------------------------------------------------------------------------
+
+/**
+ * Records every message instead of sending it. Failure toggles drive the two
+ * send-failure paths: `failNext(n)` for the morning cron's ledger rollback +
+ * retry, `setFailAlways()` for the approve/kick best-effort swallow.
+ */
+export class FakeEmailSender implements EmailSender {
+  readonly sent: EmailMessage[] = [];
+  private failAlways = false;
+  private failCount = 0;
+
+  /** Throw on the next `n` sends, then resume succeeding (cron-retry path). */
+  failNext(n = 1): void {
+    this.failCount = n;
+  }
+
+  /** Throw on every send (persistent outage / best-effort swallow path). */
+  setFailAlways(value = true): void {
+    this.failAlways = value;
+  }
+
+  async send(message: EmailMessage): Promise<void> {
+    if (this.failAlways || this.failCount > 0) {
+      if (this.failCount > 0) this.failCount -= 1;
+      throw new Error("FakeEmailSender: simulated send failure");
+    }
+    this.sent.push(message);
   }
 }

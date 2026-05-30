@@ -22,15 +22,18 @@ import {
 import { asJoinRequestId } from "@/src/match_lifecycle/domain/join-request";
 
 import {
+  FakeEmailSender,
   FakeJoinRequestRepository,
   FakeMatchRepository,
   FakeNotificationRepository,
+  FakeUserRepository,
   FakeWatchRepository,
   OTHER_PLAYER_ID,
   SEED_CAPTAIN_ID,
   SEED_MATCH_ID,
   SEED_PLAYER_ID,
   makeMatch,
+  makeUser,
 } from "../_helpers/fakes";
 import { NOTIFICATION_BODIES } from "@/src/notifications/domain/notification-bodies";
 
@@ -40,15 +43,33 @@ vi.mock("@/src/shared/db/with-match-lock", () => ({
 }));
 
 const NOW = new Date("2026-05-26T12:00:00Z");
+const APP_URL = "https://pitchup.test";
 
 function makeService() {
   const matchRepo = new FakeMatchRepository();
   const joinRepo = new FakeJoinRequestRepository();
   const watchRepo = new FakeWatchRepository();
   const notifications = new FakeNotificationRepository();
+  const users = new FakeUserRepository();
+  const email = new FakeEmailSender();
   matchRepo.put(makeMatch());
-  const service = new ApproveJoinRequestService(matchRepo, joinRepo, watchRepo, notifications);
-  return { service, matchRepo, joinRepo, watchRepo, notifications };
+  // Recipients default to email-eligible; gating tests re-seed with overrides.
+  users.seed(
+    makeUser({ id: SEED_PLAYER_ID, name: "Player", emailNotifications: true }),
+  );
+  users.seed(
+    makeUser({ id: OTHER_PLAYER_ID, name: "Other", emailNotifications: true }),
+  );
+  const service = new ApproveJoinRequestService(
+    matchRepo,
+    joinRepo,
+    watchRepo,
+    notifications,
+    users,
+    email,
+    APP_URL,
+  );
+  return { service, matchRepo, joinRepo, watchRepo, notifications, users, email };
 }
 
 describe("ApproveJoinRequestService", () => {
@@ -170,7 +191,15 @@ describe("ApproveJoinRequestService", () => {
     const joinRepo = new FakeJoinRequestRepository();
     const watchRepo = new FakeWatchRepository();
     const notifications = new FakeNotificationRepository();
-    const service = new ApproveJoinRequestService(matchRepo, joinRepo, watchRepo, notifications);
+    const service = new ApproveJoinRequestService(
+      matchRepo,
+      joinRepo,
+      watchRepo,
+      notifications,
+      new FakeUserRepository(),
+      new FakeEmailSender(),
+      APP_URL,
+    );
     const req = joinRepo.seed({
       matchId: SEED_MATCH_ID,
       userId: SEED_PLAYER_ID,
@@ -191,7 +220,15 @@ describe("ApproveJoinRequestService", () => {
     const joinRepo = new FakeJoinRequestRepository();
     const watchRepo = new FakeWatchRepository();
     const notifications = new FakeNotificationRepository();
-    const service = new ApproveJoinRequestService(matchRepo, joinRepo, watchRepo, notifications);
+    const service = new ApproveJoinRequestService(
+      matchRepo,
+      joinRepo,
+      watchRepo,
+      notifications,
+      new FakeUserRepository(),
+      new FakeEmailSender(),
+      APP_URL,
+    );
     const req = joinRepo.seed({
       matchId: SEED_MATCH_ID,
       userId: SEED_PLAYER_ID,
@@ -219,7 +256,15 @@ describe("ApproveJoinRequestService", () => {
     const joinRepo = new FakeJoinRequestRepository();
     const watchRepo = new FakeWatchRepository();
     const notifications = new FakeNotificationRepository();
-    const service = new ApproveJoinRequestService(matchRepo, joinRepo, watchRepo, notifications);
+    const service = new ApproveJoinRequestService(
+      matchRepo,
+      joinRepo,
+      watchRepo,
+      notifications,
+      new FakeUserRepository(),
+      new FakeEmailSender(),
+      APP_URL,
+    );
     const req = joinRepo.seed({
       matchId: SEED_MATCH_ID,
       userId: SEED_PLAYER_ID,
@@ -245,7 +290,15 @@ describe("ApproveJoinRequestService", () => {
     const joinRepo = new FakeJoinRequestRepository();
     const watchRepo = new FakeWatchRepository();
     const notifications = new FakeNotificationRepository();
-    const service = new ApproveJoinRequestService(matchRepo, joinRepo, watchRepo, notifications);
+    const service = new ApproveJoinRequestService(
+      matchRepo,
+      joinRepo,
+      watchRepo,
+      notifications,
+      new FakeUserRepository(),
+      new FakeEmailSender(),
+      APP_URL,
+    );
 
     const req1 = joinRepo.seed({
       matchId: SEED_MATCH_ID,
@@ -284,7 +337,15 @@ describe("ApproveJoinRequestService", () => {
     const joinRepo = new FakeJoinRequestRepository();
     const watchRepo = new FakeWatchRepository();
     const notifications = new FakeNotificationRepository();
-    const service = new ApproveJoinRequestService(matchRepo, joinRepo, watchRepo, notifications);
+    const service = new ApproveJoinRequestService(
+      matchRepo,
+      joinRepo,
+      watchRepo,
+      notifications,
+      new FakeUserRepository(),
+      new FakeEmailSender(),
+      APP_URL,
+    );
     const req = joinRepo.seed({
       matchId: SEED_MATCH_ID,
       userId: SEED_PLAYER_ID,
@@ -297,5 +358,83 @@ describe("ApproveJoinRequestService", () => {
       NOW,
     );
     expect(result.status).toBe("accepted");
+  });
+});
+
+describe("ApproveJoinRequestService — email (Layer 7b)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  async function approve(svc: ReturnType<typeof makeService>) {
+    const req = svc.joinRepo.seed({
+      matchId: SEED_MATCH_ID,
+      userId: SEED_PLAYER_ID,
+      status: "pending",
+    });
+    return svc.service.execute(
+      { matchId: SEED_MATCH_ID, captainId: SEED_CAPTAIN_ID, requestId: req.id },
+      NOW,
+    );
+  }
+
+  it("sends an approved email to an opted-in player with the match deep link", async () => {
+    const svc = makeService();
+    await approve(svc);
+
+    expect(svc.email.sent).toHaveLength(1);
+    const msg = svc.email.sent[0]!;
+    expect(msg.to).toBe(`${SEED_PLAYER_ID}@example.com`);
+    expect(msg.subject).toBe("You're in ✓");
+    expect(msg.text).toContain(`${APP_URL}/matches/${SEED_MATCH_ID}`);
+  });
+
+  it("does NOT email a player who opted out (email_notifications=false)", async () => {
+    const svc = makeService();
+    svc.users.seed(
+      makeUser({ id: SEED_PLAYER_ID, name: "Player", emailNotifications: false }),
+    );
+    await approve(svc);
+    expect(svc.email.sent).toHaveLength(0);
+    // In-app inbox is never gated — the notification still landed.
+    expect(svc.notifications.inserted).toHaveLength(1);
+  });
+
+  it("does NOT email a banned recipient", async () => {
+    const svc = makeService();
+    svc.users.seed(
+      makeUser({
+        id: SEED_PLAYER_ID,
+        name: "Player",
+        emailNotifications: true,
+        banned: true,
+      }),
+    );
+    await approve(svc);
+    expect(svc.email.sent).toHaveLength(0);
+  });
+
+  it("does NOT email a soft-deleted recipient", async () => {
+    const svc = makeService();
+    svc.users.seed(
+      makeUser({
+        id: SEED_PLAYER_ID,
+        name: "Player",
+        emailNotifications: true,
+        deletedAt: new Date("2026-05-01T00:00:00Z"),
+      }),
+    );
+    await approve(svc);
+    expect(svc.email.sent).toHaveLength(0);
+  });
+
+  it("best-effort: a send failure does NOT roll back the approve", async () => {
+    const svc = makeService();
+    svc.email.setFailAlways();
+
+    const result = await approve(svc);
+
+    // Domain change + in-app inbox committed despite the email throwing.
+    expect(result.status).toBe("accepted");
+    expect(svc.notifications.inserted).toHaveLength(1);
+    expect(svc.email.sent).toHaveLength(0);
   });
 });

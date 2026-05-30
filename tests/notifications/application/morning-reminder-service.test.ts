@@ -17,15 +17,18 @@ import { NOTIFICATION_BODIES } from "@/src/notifications/domain/notification-bod
 import { asMatchId } from "@/src/match_lifecycle/domain/match";
 
 import {
+  FakeEmailSender,
   FakeJoinRequestRepository,
   FakeMatchRepository,
   FakeNotificationRepository,
   FakeReminderSentRepository,
+  FakeUserRepository,
   OTHER_PLAYER_ID,
   SEED_CAPTAIN_ID,
   SEED_MATCH_ID,
   SEED_PLAYER_ID,
   makeMatch,
+  makeUser,
 } from "../../match_lifecycle/_helpers/fakes";
 
 // withTransaction is mocked to a no-op pass-through (single-statement tests).
@@ -33,18 +36,25 @@ vi.mock("@/src/shared/db/with-transaction", () => ({
   withTransaction: <T,>(work: (tx: unknown) => Promise<T>) => work({}),
 }));
 
+const APP_URL = "https://pitchup.test";
+
 function setup() {
   const matches = new FakeMatchRepository();
   const joinRequests = new FakeJoinRequestRepository();
   const notifications = new FakeNotificationRepository();
   const reminders = new FakeReminderSentRepository();
+  const users = new FakeUserRepository();
+  const email = new FakeEmailSender();
   const service = new MorningReminderService({
     matches,
     joinRequests,
     notifications,
     reminders,
+    users,
+    emailSender: email,
+    appBaseUrl: APP_URL,
   });
-  return { service, matches, joinRequests, notifications, reminders };
+  return { service, matches, joinRequests, notifications, reminders, users, email };
 }
 
 describe("MorningReminderService — window math", () => {
@@ -322,6 +332,7 @@ describe("MorningReminderService — exclusions", () => {
       recipientsConsidered: 0,
       remindersSent: 0,
       alreadySent: 0,
+      failed: 0,
     });
   });
 });
@@ -359,5 +370,115 @@ describe("MorningReminderService — body wiring", () => {
 
     const n = notifications.inserted[0]!;
     expect(n.body).toBe(NOTIFICATION_BODIES.morningReminderTomorrow);
+  });
+});
+
+describe("MorningReminderService — email (Layer 7b)", () => {
+  const NOW_TODAY = new Date("2026-07-15T08:00:00Z");
+  const IN_WINDOW = new Date("2026-07-15T16:00:00Z");
+
+  function seedMatchWithCaptainAndPlayer(s: ReturnType<typeof setup>) {
+    s.matches.put(
+      makeMatch({ startTime: IN_WINDOW, captainId: SEED_CAPTAIN_ID }),
+    );
+    s.joinRequests.seed({
+      matchId: SEED_MATCH_ID,
+      userId: SEED_PLAYER_ID,
+      status: "accepted",
+    });
+  }
+
+  it("emails the captain + accepted opted-in recipients with the window subject + deep link", async () => {
+    const s = setup();
+    seedMatchWithCaptainAndPlayer(s);
+    s.users.seed(
+      makeUser({ id: SEED_CAPTAIN_ID, name: "Cap", emailNotifications: true }),
+    );
+    s.users.seed(
+      makeUser({ id: SEED_PLAYER_ID, name: "Player", emailNotifications: true }),
+    );
+
+    await s.service.run({ now: NOW_TODAY, window: "today" });
+
+    expect(s.email.sent).toHaveLength(2);
+    expect(s.email.sent.map((m) => m.to).sort()).toEqual(
+      [`${SEED_CAPTAIN_ID}@example.com`, `${SEED_PLAYER_ID}@example.com`].sort(),
+    );
+    for (const msg of s.email.sent) {
+      expect(msg.subject).toBe("Match today ⚽");
+      expect(msg.text).toContain(`${APP_URL}/matches/${SEED_MATCH_ID}`);
+    }
+  });
+
+  it("uses the 'tomorrow' subject for the 20:00 window", async () => {
+    const s = setup();
+    s.matches.put(
+      makeMatch({
+        startTime: new Date("2026-07-16T07:00:00Z"),
+        captainId: SEED_CAPTAIN_ID,
+      }),
+    );
+    s.users.seed(
+      makeUser({ id: SEED_CAPTAIN_ID, name: "Cap", emailNotifications: true }),
+    );
+
+    await s.service.run({ now: new Date("2026-07-15T18:00:00Z"), window: "tomorrow" });
+
+    expect(s.email.sent).toHaveLength(1);
+    expect(s.email.sent[0]!.subject).toBe("Match tomorrow ⚽");
+  });
+
+  it("skips email for opted-out recipients but still writes their in-app inbox row", async () => {
+    const s = setup();
+    seedMatchWithCaptainAndPlayer(s);
+    s.users.seed(
+      makeUser({ id: SEED_CAPTAIN_ID, name: "Cap", emailNotifications: true }),
+    );
+    s.users.seed(
+      makeUser({ id: SEED_PLAYER_ID, name: "Player", emailNotifications: false }),
+    );
+
+    await s.service.run({ now: NOW_TODAY, window: "today" });
+
+    // Only the captain got mail; the in-app inbox got both (never gated).
+    expect(s.email.sent).toHaveLength(1);
+    expect(s.email.sent[0]!.to).toBe(`${SEED_CAPTAIN_ID}@example.com`);
+    expect(s.notifications.inserted).toHaveLength(2);
+  });
+
+  it("skips email for a recipient with no resolvable user row (no throw)", async () => {
+    const s = setup();
+    s.matches.put(
+      makeMatch({ startTime: IN_WINDOW, captainId: SEED_CAPTAIN_ID }),
+    );
+    // No users seeded → findByIds returns [] → email skipped, inbox still written.
+    const result = await s.service.run({ now: NOW_TODAY, window: "today" });
+
+    expect(s.email.sent).toHaveLength(0);
+    expect(result.remindersSent).toBe(1);
+    expect(s.notifications.inserted).toHaveLength(1);
+  });
+
+  it("resilience: one failing send is caught (failed++) and does NOT abort the rest of the run", async () => {
+    const s = setup();
+    seedMatchWithCaptainAndPlayer(s);
+    s.users.seed(
+      makeUser({ id: SEED_CAPTAIN_ID, name: "Cap", emailNotifications: true }),
+    );
+    s.users.seed(
+      makeUser({ id: SEED_PLAYER_ID, name: "Player", emailNotifications: true }),
+    );
+    // First send (captain, processed first) throws; the player still gets mail.
+    // NOTE: the pass-through withTransaction mock can't model the DB rollback,
+    // so we assert run-level resilience here; the ledger-rollback "exactly-once"
+    // is a real-tx property covered by the ON-CONFLICT test + the Neon smoke run.
+    s.email.failNext(1);
+
+    const result = await s.service.run({ now: NOW_TODAY, window: "today" });
+
+    expect(result.failed).toBe(1);
+    expect(result.remindersSent).toBe(1);
+    expect(s.email.sent).toHaveLength(1);
+    expect(s.email.sent[0]!.to).toBe(`${SEED_PLAYER_ID}@example.com`);
   });
 });
