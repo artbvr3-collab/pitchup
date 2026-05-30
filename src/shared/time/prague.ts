@@ -181,3 +181,52 @@ export function pragueRange(
 export function pragueHourOfDay(instant: Date): number {
   return getPragueParts(instant).hour;
 }
+
+/**
+ * Resolve a wall-clock time `HH:MM:SS` on the given Prague calendar date to
+ * a UTC instant. Same iterative algorithm as `pragueMidnightAsUtc`,
+ * generalised to any seconds-of-day target.
+ *
+ * Cross-DST behavior:
+ *   - Spring-forward (e.g. 2026-03-29 at 02:00 Prague): the wall-clock hour
+ *     02:00–03:00 does not exist. Asking for 02:30 will return the instant
+ *     that, when rendered in Prague, reads 03:30 — the algorithm corrects
+ *     across the skipped hour after one iteration. Callers should avoid
+ *     querying for non-existent times.
+ *   - Fall-back (e.g. 2026-10-25 at 03:00 Prague reverts to 02:00): the
+ *     hour 02:00–03:00 repeats. The function returns the FIRST occurrence
+ *     (still on summer offset) — the corrective iteration converges there.
+ *
+ * Used by Layer 7b's morning-reminder cron to compute the "tomorrow
+ * 00:00–12:00 Prague" upper bound (which is NOT 12h UTC after midnight on
+ * DST Sundays — it's 11h on spring-forward and 13h on fall-back).
+ */
+export function pragueWallTimeAsUtc(
+  date: PragueDate,
+  hour: number,
+  minute = 0,
+  second = 0,
+): Date {
+  const [y, m, d] = date.split("-").map(Number);
+  const targetSecondsOfDay = hour * 3600 + minute * 60 + second;
+
+  let guess = new Date(Date.UTC(y!, m! - 1, d!, hour, minute, second));
+  for (let i = 0; i < 3; i++) {
+    const parts = getPragueParts(guess);
+    const observedSecondsOfDay =
+      parts.hour * 3600 + parts.minute * 60 + parts.second;
+    const observedDate = asPragueDate(
+      `${pad(parts.year, 4)}-${pad(parts.month)}-${pad(parts.day)}`,
+    );
+    const dayDelta = diffPragueDays(observedDate, date);
+    if (dayDelta === 0 && observedSecondsOfDay === targetSecondsOfDay) {
+      return guess;
+    }
+    guess = new Date(
+      guess.getTime() +
+        dayDelta * 86_400_000 +
+        (targetSecondsOfDay - observedSecondsOfDay) * 1000,
+    );
+  }
+  return guess;
+}

@@ -34,6 +34,7 @@ import type {
   NotificationRow,
 } from "@/src/notifications/domain/notification";
 import type { NotificationRepository } from "@/src/notifications/domain/notification-repository";
+import type { ReminderSentRepository } from "@/src/notifications/domain/reminder-sent-repository";
 import type { TransactionClient } from "@/src/shared/db/types";
 
 import {
@@ -233,6 +234,43 @@ export class FakeMatchRepository implements MatchRepository {
         ? a.id.localeCompare(b.id)
         : a.startTime.getTime() - b.startTime.getTime(),
     );
+    return out;
+  }
+
+  /**
+   * Layer 7b cron #3 fake — the real query joins matches × join_requests; the
+   * fake instead consults a test-seeded set. Tests opt in via `markHasPending`.
+   * Filters by `startTime <= now` against the put() match data.
+   */
+  private hasPending = new Set<MatchId>();
+
+  /** Mark a (previously put()) match as having at least one pending JR. */
+  markHasPending(matchId: MatchId): void {
+    this.hasPending.add(matchId);
+  }
+
+  async findMatchIdsWithPendingStartedBefore(
+    now: Date,
+  ): Promise<readonly MatchId[]> {
+    const out: MatchId[] = [];
+    for (const id of this.hasPending) {
+      const m = this.matches.get(id);
+      if (m && m.startTime.getTime() <= now.getTime()) out.push(id);
+    }
+    return out;
+  }
+
+  async findActiveStartingInWindow(
+    start: Date,
+    end: Date,
+  ): Promise<readonly Match[]> {
+    const out: Match[] = [];
+    for (const m of this.matches.values()) {
+      const t = m.startTime.getTime();
+      if (t >= start.getTime() && t < end.getTime() && m.cancelledAt === null) {
+        out.push(m);
+      }
+    }
     return out;
   }
 
@@ -522,6 +560,15 @@ export class FakeWatchRepository implements WatchRepository {
     }
     return out;
   }
+
+  /** Records cutoff for assertion; returns the preconfigured count. */
+  public deleteForMatchesStartingBeforeCalls: Date[] = [];
+  public deleteForMatchesStartingBeforeResult = 0;
+
+  async deleteForMatchesStartingBefore(beforeStartTime: Date): Promise<number> {
+    this.deleteForMatchesStartingBeforeCalls.push(beforeStartTime);
+    return this.deleteForMatchesStartingBeforeResult;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -532,6 +579,10 @@ export class FakeNotificationRepository implements NotificationRepository {
   /** Every inserted row (insert + insertMany flattened) in call order. */
   public inserted: NewNotification[] = [];
   public markAllReadCalls: string[] = [];
+  /** Cutoffs passed to deleteOlderThan (Layer 7b InboxTtlService). */
+  public deleteOlderThanCalls: Date[] = [];
+  /** Configurable result for deleteOlderThan; defaults to 0. */
+  public deleteOlderThanResult = 0;
   private store: NotificationRow[] = [];
 
   async insert(n: NewNotification, _tx: TransactionClient): Promise<void> {
@@ -552,8 +603,54 @@ export class FakeNotificationRepository implements NotificationRepository {
   async markAllRead(userId: string): Promise<void> {
     this.markAllReadCalls.push(userId);
   }
-  async deleteOlderThan(): Promise<number> {
-    return 0;
+  async deleteOlderThan(cutoff: Date): Promise<number> {
+    this.deleteOlderThanCalls.push(cutoff);
+    return this.deleteOlderThanResult;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ReminderSentRepository (Layer 7b)
+// ---------------------------------------------------------------------------
+
+export class FakeReminderSentRepository implements ReminderSentRepository {
+  /** Cutoffs passed to deleteForMatchesStartingBefore (InboxTtlService). */
+  public deleteForMatchesStartingBeforeCalls: Date[] = [];
+  /** Configurable result; defaults to 0. */
+  public deleteForMatchesStartingBeforeResult = 0;
+
+  /**
+   * In-memory ledger backing insertIfAbsent. Keyed by `${matchId}::${userId}::${kind}`.
+   * Tests pre-seed via `seed()` to simulate "already sent" rows.
+   */
+  private ledger = new Set<string>();
+  /** Every (matchId, userId, kind) attempt in call order. */
+  public insertCalls: Array<{
+    matchId: string;
+    userId: string;
+    kind: string;
+  }> = [];
+
+  seed(matchId: string, userId: string, kind: string): void {
+    this.ledger.add(`${matchId}::${userId}::${kind}`);
+  }
+
+  async insertIfAbsent(
+    matchId: string,
+    userId: string,
+    kind: string,
+    _tx: TransactionClient,
+  ): Promise<"inserted" | "existed"> {
+    this.insertCalls.push({ matchId, userId, kind });
+    const key = `${matchId}::${userId}::${kind}`;
+    if (this.ledger.has(key)) return "existed";
+    this.ledger.add(key);
+    return "inserted";
+  }
+
+  async deleteForMatchesStartingBefore(beforeStartTime: Date): Promise<number> {
+    this.deleteForMatchesStartingBeforeCalls.push(beforeStartTime);
+    return this.deleteForMatchesStartingBeforeResult;
   }
 }
 

@@ -20,6 +20,7 @@ import { chatMessageRepository } from "@/src/chat/infrastructure/repositories";
 import { notificationRepository } from "@/src/notifications/infrastructure/repositories";
 
 import { ApproveJoinRequestService } from "./application/approve-join-request-service";
+import { AutoRejectPendingService } from "./application/auto-reject-pending-service";
 import { CancelJoinRequestService } from "./application/cancel-join-request-service";
 import { CancelMatchService } from "./application/cancel-match-service";
 import { CreateMatchService } from "./application/create-match-service";
@@ -123,5 +124,12 @@ export const editMatchService = new EditMatchService(
   joinRequestRepository,
   watchRepository,
   venueRepository,
+  notificationRepository,
+);
+
+export const autoRejectPendingService = new AutoRejectPendingService(
+  matchRepository,
+  joinRequestRepository,
+  watchRepository,
   notificationRepository,
 );

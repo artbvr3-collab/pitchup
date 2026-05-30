@@ -303,6 +303,35 @@ export class PrismaMatchRepository implements MatchRepository {
     });
     return rows.map(matchRowToDomain);
   }
+
+  async findMatchIdsWithPendingStartedBefore(
+    now: Date,
+  ): Promise<readonly MatchId[]> {
+    // Relation filter compiles to a JOIN + DISTINCT (or EXISTS subquery)
+    // shape — either uses matches(start_time) + join_requests(match_id,
+    // status) indexes. `select` keeps the payload narrow.
+    const rows = await this.prisma.match.findMany({
+      where: {
+        startTime: { lte: now },
+        joinRequests: { some: { status: "pending" } },
+      },
+      select: { id: true },
+    });
+    return rows.map((r) => asMatchId(r.id));
+  }
+
+  async findActiveStartingInWindow(
+    start: Date,
+    end: Date,
+  ): Promise<readonly Match[]> {
+    const rows = await this.prisma.match.findMany({
+      where: {
+        startTime: { gte: start, lt: end },
+        cancelledAt: null,
+      },
+    });
+    return rows.map(matchRowToDomain);
+  }
 }
 
 type MatchWithVenueRow = MatchRow & {

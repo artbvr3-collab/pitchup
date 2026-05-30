@@ -12,7 +12,12 @@
 import { prisma } from "@/src/shared/db/prisma";
 
 import type { NotificationRepository } from "../domain/notification-repository";
+import type { ReminderSentRepository } from "../domain/reminder-sent-repository";
 import { PrismaNotificationRepository } from "./prisma-notification-repository";
+import { PrismaReminderSentRepository } from "./prisma-reminder-sent-repository";
 
 export const notificationRepository: NotificationRepository =
   new PrismaNotificationRepository(prisma);
+
+export const reminderSentRepository: ReminderSentRepository =
+  new PrismaReminderSentRepository(prisma);

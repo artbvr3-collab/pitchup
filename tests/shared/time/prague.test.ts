@@ -17,6 +17,7 @@ import {
   pragueDay,
   pragueHourOfDay,
   pragueRange,
+  pragueWallTimeAsUtc,
   todayPrague,
 } from "@/src/shared/time/prague";
 
@@ -121,5 +122,46 @@ describe("todayPrague returns the Prague calendar date for any `now`", () => {
 
   it("returns the same Prague date when UTC is mid-day", () => {
     expect(todayPrague(new Date("2026-05-26T10:00:00Z"))).toBe("2026-05-26");
+  });
+});
+
+describe("pragueWallTimeAsUtc resolves Prague HH:MM:SS to a UTC instant", () => {
+  it("noon on a winter day is 11:00 UTC (Prague = UTC+1)", () => {
+    const noon = pragueWallTimeAsUtc(asPragueDate("2026-01-15"), 12);
+    expect(noon.toISOString()).toBe("2026-01-15T11:00:00.000Z");
+  });
+
+  it("noon on a summer day is 10:00 UTC (Prague = UTC+2)", () => {
+    const noon = pragueWallTimeAsUtc(asPragueDate("2026-07-15"), 12);
+    expect(noon.toISOString()).toBe("2026-07-15T10:00:00.000Z");
+  });
+
+  it("noon on spring-forward Sunday 2026-03-29 is 10:00 UTC (already on summer offset)", () => {
+    // After the 02:00 → 03:00 jump, Prague is UTC+2 for the rest of the day.
+    const noon = pragueWallTimeAsUtc(asPragueDate("2026-03-29"), 12);
+    expect(noon.toISOString()).toBe("2026-03-29T10:00:00.000Z");
+  });
+
+  it("noon on fall-back Sunday 2026-10-25 is 11:00 UTC (already on winter offset)", () => {
+    // The 02:00–03:00 hour repeats on summer offset; by noon Prague is UTC+1.
+    const noon = pragueWallTimeAsUtc(asPragueDate("2026-10-25"), 12);
+    expect(noon.toISOString()).toBe("2026-10-25T11:00:00.000Z");
+  });
+
+  it("10:00 on spring-forward Sunday is 08:00 UTC (after the skipped hour)", () => {
+    const ten = pragueWallTimeAsUtc(asPragueDate("2026-03-29"), 10);
+    expect(ten.toISOString()).toBe("2026-03-29T08:00:00.000Z");
+  });
+
+  it("20:00 on fall-back Sunday is 19:00 UTC", () => {
+    const eight = pragueWallTimeAsUtc(asPragueDate("2026-10-25"), 20);
+    expect(eight.toISOString()).toBe("2026-10-25T19:00:00.000Z");
+  });
+
+  it("midnight matches pragueDay().utcStart for the same date", () => {
+    const date = asPragueDate("2026-03-29");
+    expect(pragueWallTimeAsUtc(date, 0).toISOString()).toBe(
+      pragueDay(date).utcStart.toISOString(),
+    );
   });
 });

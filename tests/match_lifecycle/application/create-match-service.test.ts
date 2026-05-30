@@ -71,6 +71,14 @@ class FakeMatchRepository implements MatchRepository {
   async findUpcomingByCaptain(): Promise<readonly never[]> {
     return [];
   }
+
+  async findMatchIdsWithPendingStartedBefore(): Promise<readonly never[]> {
+    return [];
+  }
+
+  async findActiveStartingInWindow(): Promise<readonly never[]> {
+    return [];
+  }
 }
 
 class FakeVenueRepository implements VenueRepository {

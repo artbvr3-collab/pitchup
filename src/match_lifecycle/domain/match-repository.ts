@@ -204,4 +204,43 @@ export interface MatchRepository {
     userId: UserId,
     now: Date,
   ): Promise<readonly Match[]>;
+
+  /**
+   * Layer 7b cron #3 (auto-reject pending on match start, every 5 min):
+   * return the distinct ids of matches whose `start_time <= now` AND which
+   * still have at least one `JoinRequest.status='pending'` row. Service
+   * then iterates the list and processes each match under its own
+   * advisory lock.
+   *
+   * Returned in arbitrary order; caller doesn't sort. Empty array is a
+   * normal outcome (no eligible matches in this 5-min window) and short-
+   * circuits the cron loop.
+   *
+   * Unlocked read — no transaction. Spec match.md → "Cron jobs → Cron
+   * auto-reject pending on match start" + per-endpoint checklist → "Cron
+   * auto-reject pending".
+   */
+  findMatchIdsWithPendingStartedBefore(
+    now: Date,
+  ): Promise<readonly MatchId[]>;
+
+  /**
+   * Layer 7b crons #1 and #2 (morning-of-match reminder, 10:00 / 20:00
+   * Europe/Prague): return every match whose `start_time` falls within the
+   * half-open UTC interval `[start, end)` AND that is not cancelled.
+   *
+   * Cancelled matches are excluded because their accepted players were
+   * already told via the `match_cancelled` flow; a "Match today" reminder
+   * for a cancelled match would be wrong.
+   *
+   * Returned in arbitrary order; caller doesn't sort. Empty array is a
+   * normal outcome (low-traffic 12-hour window) and short-circuits the
+   * cron loop.
+   *
+   * Unlocked read — no transaction.
+   */
+  findActiveStartingInWindow(
+    start: Date,
+    end: Date,
+  ): Promise<readonly Match[]>;
 }
