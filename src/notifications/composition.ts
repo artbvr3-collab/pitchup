@@ -20,6 +20,7 @@ import {
 } from "@/src/match_lifecycle/infrastructure/repositories";
 
 import { InboxTtlService } from "./application/inbox-ttl-service";
+import { MorningReminderService } from "./application/morning-reminder-service";
 import { UpdatesStateService } from "./application/updates-state-service";
 import {
   notificationRepository,
@@ -37,4 +38,11 @@ export const inboxTtlService = new InboxTtlService({
   notifications: notificationRepository,
   reminders: reminderSentRepository,
   watches: watchRepository,
+});
+
+export const morningReminderService = new MorningReminderService({
+  matches: matchRepository,
+  joinRequests: joinRequestRepository,
+  notifications: notificationRepository,
+  reminders: reminderSentRepository,
 });

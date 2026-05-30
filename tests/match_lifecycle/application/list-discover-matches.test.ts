@@ -74,6 +74,10 @@ class FakeMatchRepository implements MatchRepository {
   async findMatchIdsWithPendingStartedBefore(): Promise<readonly never[]> {
     return [];
   }
+
+  async findActiveStartingInWindow(): Promise<readonly never[]> {
+    return [];
+  }
 }
 
 const NOW = new Date("2026-05-26T10:00:00Z"); // Prague 2026-05-26

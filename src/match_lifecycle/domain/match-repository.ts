@@ -198,4 +198,24 @@ export interface MatchRepository {
   findMatchIdsWithPendingStartedBefore(
     now: Date,
   ): Promise<readonly MatchId[]>;
+
+  /**
+   * Layer 7b crons #1 and #2 (morning-of-match reminder, 10:00 / 20:00
+   * Europe/Prague): return every match whose `start_time` falls within the
+   * half-open UTC interval `[start, end)` AND that is not cancelled.
+   *
+   * Cancelled matches are excluded because their accepted players were
+   * already told via the `match_cancelled` flow; a "Match today" reminder
+   * for a cancelled match would be wrong.
+   *
+   * Returned in arbitrary order; caller doesn't sort. Empty array is a
+   * normal outcome (low-traffic 12-hour window) and short-circuits the
+   * cron loop.
+   *
+   * Unlocked read — no transaction.
+   */
+  findActiveStartingInWindow(
+    start: Date,
+    end: Date,
+  ): Promise<readonly Match[]>;
 }

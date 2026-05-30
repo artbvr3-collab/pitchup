@@ -238,6 +238,20 @@ export class FakeMatchRepository implements MatchRepository {
     return out;
   }
 
+  async findActiveStartingInWindow(
+    start: Date,
+    end: Date,
+  ): Promise<readonly Match[]> {
+    const out: Match[] = [];
+    for (const m of this.matches.values()) {
+      const t = m.startTime.getTime();
+      if (t >= start.getTime() && t < end.getTime() && m.cancelledAt === null) {
+        out.push(m);
+      }
+    }
+    return out;
+  }
+
   private attachVenue(m: Match): MatchWithVenue {
     return { ...m, venue: this.venuesByMatch.get(m.id) ?? FAKE_VENUE };
   }
@@ -571,6 +585,35 @@ export class FakeReminderSentRepository implements ReminderSentRepository {
   public deleteForMatchesStartingBeforeCalls: Date[] = [];
   /** Configurable result; defaults to 0. */
   public deleteForMatchesStartingBeforeResult = 0;
+
+  /**
+   * In-memory ledger backing insertIfAbsent. Keyed by `${matchId}::${userId}::${kind}`.
+   * Tests pre-seed via `seed()` to simulate "already sent" rows.
+   */
+  private ledger = new Set<string>();
+  /** Every (matchId, userId, kind) attempt in call order. */
+  public insertCalls: Array<{
+    matchId: string;
+    userId: string;
+    kind: string;
+  }> = [];
+
+  seed(matchId: string, userId: string, kind: string): void {
+    this.ledger.add(`${matchId}::${userId}::${kind}`);
+  }
+
+  async insertIfAbsent(
+    matchId: string,
+    userId: string,
+    kind: string,
+    _tx: TransactionClient,
+  ): Promise<"inserted" | "existed"> {
+    this.insertCalls.push({ matchId, userId, kind });
+    const key = `${matchId}::${userId}::${kind}`;
+    if (this.ledger.has(key)) return "existed";
+    this.ledger.add(key);
+    return "inserted";
+  }
 
   async deleteForMatchesStartingBefore(beforeStartTime: Date): Promise<number> {
     this.deleteForMatchesStartingBeforeCalls.push(beforeStartTime);

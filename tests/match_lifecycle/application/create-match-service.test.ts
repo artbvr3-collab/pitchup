@@ -71,6 +71,10 @@ class FakeMatchRepository implements MatchRepository {
   async findMatchIdsWithPendingStartedBefore(): Promise<readonly never[]> {
     return [];
   }
+
+  async findActiveStartingInWindow(): Promise<readonly never[]> {
+    return [];
+  }
 }
 
 class FakeVenueRepository implements VenueRepository {

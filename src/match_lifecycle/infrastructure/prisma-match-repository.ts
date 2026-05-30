@@ -300,6 +300,19 @@ export class PrismaMatchRepository implements MatchRepository {
     });
     return rows.map((r) => asMatchId(r.id));
   }
+
+  async findActiveStartingInWindow(
+    start: Date,
+    end: Date,
+  ): Promise<readonly Match[]> {
+    const rows = await this.prisma.match.findMany({
+      where: {
+        startTime: { gte: start, lt: end },
+        cancelledAt: null,
+      },
+    });
+    return rows.map(matchRowToDomain);
+  }
 }
 
 type MatchWithVenueRow = MatchRow & {
