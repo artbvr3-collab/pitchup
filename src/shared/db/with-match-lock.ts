@@ -37,7 +37,7 @@ export async function withMatchLock<T>(
 ): Promise<T> {
   const lockKey = `match:${matchId}`;
   return prisma.$transaction(async (tx) => {
-    await tx.$queryRaw(
+    await tx.$executeRaw(
       Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`,
     );
     return work(tx);
