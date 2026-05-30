@@ -61,6 +61,18 @@ class FakeUserRepository implements UserRepository {
   async markDeleted(): Promise<void> {
     throw new Error("markDeleted() must not be called from requireAuthCore");
   }
+
+  async setBanned(): Promise<void> {
+    throw new Error("setBanned() must not be called from requireAuthCore");
+  }
+
+  async setAdmin(): Promise<void> {
+    throw new Error("setAdmin() must not be called from requireAuthCore");
+  }
+
+  async listForAdmin(): Promise<readonly User[]> {
+    throw new Error("listForAdmin() must not be called from requireAuthCore");
+  }
 }
 
 function makeUser(overrides: Partial<User> = {}): User {

@@ -88,8 +88,10 @@ function IconPerson() {
   );
 }
 
-/** Paths where the BottomNav is hidden entirely. */
-const HIDDEN_PATHS = ["/login", "/welcome"];
+/** Paths where the BottomNav is hidden entirely. `/admin` has its own
+ *  four-tab admin nav (app/admin/admin-bottom-nav.tsx), so the public
+ *  five-tab bar must not also render there (Layer 9). */
+const HIDDEN_PATHS = ["/login", "/welcome", "/admin"];
 
 /** Sheet filter params shared between /games and /map. */
 const SHEET_PARAMS = ["distance", "time", "size", "spots", "free", "booked"];

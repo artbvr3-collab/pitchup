@@ -59,3 +59,17 @@ export class ValidationError extends AppError {
     super("validation_failed", "Validation failed", 400, meta);
   }
 }
+
+/**
+ * `403 forbidden` — the caller is authenticated (a valid, unbanned session)
+ * but lacks the rights for this action. Layer 9: `requireAdmin()` throws it on
+ * the admin API surface when `isAdmin === false` — a direct curl / stale tab
+ * that bypassed the middleware silent-redirect. The admin *pages* never reach
+ * this (middleware redirects non-admins to `/my-matches`); only the
+ * `app/api/admin/**` handlers do.
+ */
+export class ForbiddenError extends AppError {
+  constructor(code = "forbidden", meta: Record<string, unknown> = {}) {
+    super(code, "Forbidden", 403, meta);
+  }
+}

@@ -39,6 +39,9 @@ model User {
   notifications  Notification[]
   remindersSent  ReminderSent[]
 
+  adminActionsActed    AdminAction[] @relation("AdminActionActor")
+  adminActionsReceived AdminAction[] @relation("AdminActionTarget")
+
   @@map("users")
 }
 
@@ -268,4 +271,35 @@ model ReminderSent {
 
   @@id([matchId, userId, kind])
   @@map("reminder_sent")
+}
+
+/// Append-only audit log of admin role/ban actions (Layer 9). Every
+/// `promote` / `demote` / `ban` / `unban` taken in `/admin/users` writes one
+/// row: who acted, on whom, what, and the required reason text. In v1 the log
+/// is NOT surfaced in the UI — it is read directly from the DB for appeals and
+/// investigations (spec personal.md → "Admin role management & safety" →
+/// "Audit log"; a `/admin/audit` screen is a v1.1 candidate).
+///
+/// `action` is an app-validated text enum (`promote|demote|ban|unban`), not a
+/// Postgres enum — same convention as `Notification.type` / `Venue.surface`.
+/// `reason` is nullable: `unban` carries no reason (no modal in the spec),
+/// the other three require a non-empty reason enforced at the HTTP boundary.
+///
+/// Both FKs are plain references with NO `onDelete` rule (RESTRICT by default):
+/// the audit trail must outlive any cleanup — a target user is soft-deleted /
+/// banned, never hard-deleted, so the rows are never orphaned. Index on
+/// `(target_user_id, created_at DESC)` for the per-user history read.
+model AdminAction {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorAdminId String   @map("actor_admin_id") @db.Uuid
+  targetUserId String   @map("target_user_id") @db.Uuid
+  action       String
+  reason       String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  actor  User @relation("AdminActionActor", fields: [actorAdminId], references: [id])
+  target User @relation("AdminActionTarget", fields: [targetUserId], references: [id])
+
+  @@index([targetUserId, createdAt])
+  @@map("admin_actions")
 }

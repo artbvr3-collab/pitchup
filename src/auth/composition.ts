@@ -12,11 +12,14 @@
  *     or `application/` (would defeat the dependency direction).
  * RELATED DOCS: docs/ARCHITECTURE.md §3 (dependency direction).
  */
+import { redirect } from "next/navigation";
+
 import { cancelMatchService } from "@/src/match_lifecycle/composition";
 import { matchRepository } from "@/src/match_lifecycle/infrastructure/repositories";
 
 import { CompleteOnboardingService } from "./application/complete-onboarding-service";
 import { DeleteAccountService } from "./application/delete-account-service";
+import { requireAdminCore } from "./application/require-admin";
 import { requireAuthCore, type AuthenticatedUser } from "./application/require-auth";
 import { UpdateProfileService } from "./application/update-profile-service";
 import { asGoogleSub } from "./domain/user";
@@ -42,6 +45,41 @@ export { userRepository };
 
 export function requireAuth(): Promise<AuthenticatedUser> {
   return requireAuthCore(auth, userRepository);
+}
+
+/**
+ * Layer 9 — admin gate for the `app/api/admin/**` Route Handlers. Throws
+ * `UnauthorizedError` (401) for an invalid session, `ForbiddenError`
+ * ("admin_required", 403) for a signed-in non-admin. `isAdmin` is read from
+ * the DB on every call (never the JWT) so promote/demote take effect with no
+ * re-login.
+ */
+export function requireAdmin(): Promise<AuthenticatedUser> {
+  return requireAdminCore(auth, userRepository);
+}
+
+/**
+ * Layer 9 — admin gate for the admin Server Components (`app/admin/**`).
+ * Unlike `requireAdmin`, this REDIRECTS instead of throwing, matching the
+ * spec's access rules (personal.md → "/admin" → Access):
+ *   - no/invalid session → `/login?callbackUrl=/admin`
+ *   - signed-in non-admin → silent `/my-matches` (no 403 page — the panel's
+ *     existence is not exposed to regular users)
+ * The middleware already enforces both before the page renders; this is the
+ * defence-in-depth backstop (and the source of the verified `AuthenticatedUser`
+ * the page needs — e.g. the current admin's id for the `(you)` row).
+ */
+export async function requireAdminPage(): Promise<AuthenticatedUser> {
+  let user: AuthenticatedUser;
+  try {
+    user = await requireAuth();
+  } catch {
+    redirect("/login?callbackUrl=/admin");
+  }
+  if (!user.isAdmin) {
+    redirect("/my-matches");
+  }
+  return user;
 }
 
 /**

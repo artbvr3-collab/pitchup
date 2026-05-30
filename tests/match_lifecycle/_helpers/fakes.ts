@@ -18,7 +18,10 @@ import {
   type User,
   type UserId,
 } from "@/src/auth/domain/user";
-import type { UserRepository } from "@/src/auth/domain/user-repository";
+import type {
+  AdminUserListFilters,
+  UserRepository,
+} from "@/src/auth/domain/user-repository";
 import {
   asChatMessageId,
   type ChatMessage,
@@ -813,6 +816,34 @@ export class FakeUserRepository implements UserRepository {
   async markDeleted(id: UserId): Promise<void> {
     const u = this.users.get(id);
     if (u) this.users.set(id, { ...u, deletedAt: new Date() });
+  }
+
+  async setBanned(id: UserId, banned: boolean): Promise<void> {
+    const u = this.users.get(id);
+    if (u) this.users.set(id, { ...u, banned });
+  }
+
+  async setAdmin(id: UserId, isAdmin: boolean): Promise<void> {
+    const u = this.users.get(id);
+    if (u) this.users.set(id, { ...u, isAdmin });
+  }
+
+  async listForAdmin(filters: AdminUserListFilters): Promise<readonly User[]> {
+    let rows = [...this.users.values()].filter((u) => u.deletedAt === null);
+    if (filters.adminFilter === "yes") rows = rows.filter((u) => u.isAdmin);
+    if (filters.adminFilter === "no") rows = rows.filter((u) => !u.isAdmin);
+    if (filters.statusFilter === "active") rows = rows.filter((u) => !u.banned);
+    if (filters.statusFilter === "banned") rows = rows.filter((u) => u.banned);
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      rows = rows.filter(
+        (u) =>
+          u.name.toLowerCase().includes(q) ||
+          u.email.toLowerCase().includes(q),
+      );
+    }
+    rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return rows.slice(0, filters.limit);
   }
 }
 

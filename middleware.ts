@@ -103,6 +103,20 @@ export default auth(async (req) => {
     return redirectTo(req, "/my-matches");
   }
 
+  // Spec rule 4 (Layer 9): the `/admin` area is admin-only.
+  // - non-admin → silent redirect to /my-matches. NO 403 page — we do not
+  //   expose the panel's existence to regular users (spec personal.md →
+  //   "/admin" → Access).
+  // - admin landing on bare `/admin` → canonical first tab /admin/users.
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) {
+    if (!user.isAdmin) {
+      return redirectTo(req, "/my-matches");
+    }
+    if (pathname === "/admin") {
+      return redirectTo(req, "/admin/users");
+    }
+  }
+
   return NextResponse.next();
 });
 

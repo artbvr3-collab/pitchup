@@ -48,6 +48,15 @@ class FakeUserRepo implements UserRepository {
   async markDeleted(): Promise<void> {
     throw new Error("not used in update-profile tests");
   }
+  async setBanned(): Promise<void> {
+    throw new Error("not used in update-profile tests");
+  }
+  async setAdmin(): Promise<void> {
+    throw new Error("not used in update-profile tests");
+  }
+  async listForAdmin(): Promise<readonly User[]> {
+    throw new Error("not used in update-profile tests");
+  }
   async updateProfile(
     userId: string,
     input: UpdateProfileInput,

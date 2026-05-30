@@ -77,6 +77,18 @@ class FakeUserRepository implements UserRepository {
   async markDeleted(): Promise<void> {
     throw new Error("markDeleted() must not be called from onboarding flow");
   }
+
+  async setBanned(): Promise<void> {
+    throw new Error("setBanned() must not be called from onboarding flow");
+  }
+
+  async setAdmin(): Promise<void> {
+    throw new Error("setAdmin() must not be called from onboarding flow");
+  }
+
+  async listForAdmin(): Promise<readonly User[]> {
+    throw new Error("listForAdmin() must not be called from onboarding flow");
+  }
 }
 
 function makeUser(overrides: Partial<User> = {}): User {

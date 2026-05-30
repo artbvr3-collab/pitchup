@@ -20,7 +20,11 @@ import {
   type User,
   type UserId,
 } from "../domain/user";
-import type { NewUserInput, UserRepository } from "../domain/user-repository";
+import type {
+  AdminUserListFilters,
+  NewUserInput,
+  UserRepository,
+} from "../domain/user-repository";
 
 export class PrismaUserRepository implements UserRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -96,6 +100,40 @@ export class PrismaUserRepository implements UserRepository {
       where: { id: userId as unknown as string },
       data: { deletedAt: new Date() },
     });
+  }
+
+  async setBanned(userId: UserId, banned: boolean): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId as unknown as string },
+      data: { banned },
+    });
+  }
+
+  async setAdmin(userId: UserId, isAdmin: boolean): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId as unknown as string },
+      data: { isAdmin },
+    });
+  }
+
+  async listForAdmin(filters: AdminUserListFilters): Promise<readonly User[]> {
+    const where: Prisma.UserWhereInput = { deletedAt: null };
+    if (filters.adminFilter === "yes") where.isAdmin = true;
+    if (filters.adminFilter === "no") where.isAdmin = false;
+    if (filters.statusFilter === "active") where.banned = false;
+    if (filters.statusFilter === "banned") where.banned = true;
+    if (filters.search !== undefined && filters.search.length > 0) {
+      where.OR = [
+        { name: { contains: filters.search, mode: "insensitive" } },
+        { email: { contains: filters.search, mode: "insensitive" } },
+      ];
+    }
+    const rows = await this.prisma.user.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: filters.limit,
+    });
+    return rows.map(mapToDomain);
   }
 
   async updateProfile(
