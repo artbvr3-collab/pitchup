@@ -3,9 +3,9 @@
 //                              docs/spec/pitchup-spec-global.md → "Authentication", "Slot math", "Field surface", "Cover venue"
 //                              docs/spec/pitchup-spec-match.md → "Match states"
 // Layers: 1 (User), 2 (Match + Venue read-only), 4 (JoinRequest + Watch),
-//         5 (ChatMessage), 7 (Notification).
+//         5 (ChatMessage), 7 (Notification), 7b (ReminderSent).
 // Subsequent layers grow this file (ChatRead, Report, AdminAction,
-// ReminderSent, Like — see app-map ERD).
+// Like — see app-map ERD).
 
 generator client {
   provider = "prisma-client-js"
@@ -37,6 +37,7 @@ model User {
   watches        Watch[]
   chatMessages   ChatMessage[]  @relation("ChatMessageAuthor")
   notifications  Notification[]
+  remindersSent  ReminderSent[]
 
   @@map("users")
 }
@@ -110,6 +111,7 @@ model Match {
   watches       Watch[]
   chatMessages  ChatMessage[]
   notifications Notification[]
+  remindersSent ReminderSent[]
 
   @@index([startTime])
   @@index([venueId])
@@ -230,4 +232,40 @@ model Notification {
 
   @@index([userId, createdAt(sort: Desc)])
   @@map("notifications")
+}
+
+/// Cron idempotency ledger. One row per (match, user, reminder kind) — written
+/// by Layer 7b crons via `INSERT ... ON CONFLICT DO NOTHING` so a repeated run
+/// (process restart, second cron instance, manual replay) never produces a
+/// duplicate send. Source of truth: docs/spec/pitchup-spec-match.md → "Cron
+/// jobs → Duplicate guard on retries / process restarts" + app-map ERD →
+/// ReminderSent.
+///
+/// `kind` is a `text` column app-validated against `ReminderKind` (same
+/// convention as `Notification.type` / `Match.surface` / `JoinRequest.status`).
+/// In v1 the only kind is `'morning_reminder'` — extension just requires a new
+/// constant, no migration.
+///
+/// Composite PK `(matchId, userId, kind)` is BOTH the uniqueness constraint
+/// (drives ON CONFLICT) AND the access index — TTL cleanup queries by the
+/// leading `matchId` column and reads the PK index. No separate index needed.
+///
+/// onDelete Cascade on BOTH relations — same rationale as Notification: this
+/// is a disposable, ≤7-day-TTL technical record; if a match or user is hard-
+/// removed (admin, Layer 9) the row should evaporate, not block.
+///
+/// `createdAt @default(now())` exists for debug / audit only — the read path
+/// keys off match.start_time, not this column. TTL cleanup runs 03:00 Prague
+/// daily and removes rows whose match.start_time is > 7 days ago.
+model ReminderSent {
+  matchId   String   @map("match_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  kind      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([matchId, userId, kind])
+  @@map("reminder_sent")
 }

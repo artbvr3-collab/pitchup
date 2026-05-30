@@ -39,6 +39,10 @@ export const NOTIFICATION_BODIES = {
   spotOpenedWatcher: "🟢 A spot just opened",
   /** type=spot_opened — captain push on Leave (player-freed slot). */
   spotOpenedCaptain: "🟢 A spot opened up in your match",
+  /** type=morning_reminder — 10:00 Prague cron, match starts later today. */
+  morningReminderToday: "💬 Match today",
+  /** type=morning_reminder — 20:00 Prague cron, match starts tomorrow 00:00–11:59. */
+  morningReminderTomorrow: "💬 Match tomorrow",
 } as const;
 
 /** type=match_cancelled body for accepted players — carries the captain's reason. */
