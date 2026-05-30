@@ -44,6 +44,12 @@ import { cn } from "@/src/ui/lib/cn";
 
 export interface EditMatchFormProps {
   readonly matchId: string;
+  /**
+   * API endpoint to submit the PATCH to. Defaults to `/api/matches/:id`
+   * (captain flow). The admin edit page passes `/api/admin/matches/:id` so
+   * it lands on the admin-gated endpoint (Layer 9c).
+   */
+  readonly submitUrl?: string;
   readonly initial: {
     readonly updatedAt: string; // ISO
     readonly description: string | null;
@@ -164,7 +170,8 @@ export function EditMatchForm(props: EditMatchFormProps) {
         router.push(`/matches/${props.matchId}`);
         return;
       }
-      const res = await fetch(`/api/matches/${props.matchId}`, {
+      const url = props.submitUrl ?? `/api/matches/${props.matchId}`;
+      const res = await fetch(url, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),

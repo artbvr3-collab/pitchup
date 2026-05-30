@@ -21,6 +21,9 @@ import { emailSender } from "@/src/notifications/infrastructure/email-sender";
 import { notificationRepository } from "@/src/notifications/infrastructure/repositories";
 import { appBaseUrl } from "@/src/shared/config/env";
 
+import { AdminCancelMatchService } from "./application/admin-cancel-match-service";
+import { AdminDeleteMatchService } from "./application/admin-delete-match-service";
+import { AdminHideTextService } from "./application/admin-hide-text-service";
 import { ApproveJoinRequestService } from "./application/approve-join-request-service";
 import { AutoRejectPendingService } from "./application/auto-reject-pending-service";
 import { CancelJoinRequestService } from "./application/cancel-join-request-service";
@@ -31,6 +34,7 @@ import { EditMatchService } from "./application/edit-match-service";
 import { JoinMatchService } from "./application/join-match-service";
 import { KickPlayerService } from "./application/kick-player-service";
 import { LeaveMatchService } from "./application/leave-match-service";
+import { ListAdminMatchesService, type AdminMatchStatus } from "./application/list-admin-matches-service";
 import { ListDiscoverMatchesService } from "./application/list-discover-matches";
 import { ListMapMatchesService } from "./application/list-map-matches";
 import { ListMyMatchesService } from "./application/list-my-matches-service";
@@ -41,6 +45,7 @@ import { UnwatchMatchService } from "./application/unwatch-match-service";
 import { UpdateVenueService } from "./application/update-venue-service";
 import { WatchMatchService } from "./application/watch-match-service";
 import {
+  adminMatchDeletionRepository,
   joinRequestRepository,
   matchRepository,
   venueRepository,
@@ -154,3 +159,25 @@ export const autoRejectPendingService = new AutoRejectPendingService(
   watchRepository,
   notificationRepository,
 );
+
+// Layer 9c — admin match management services
+export const listAdminMatchesService = new ListAdminMatchesService(matchRepository);
+
+export const adminHideTextService = new AdminHideTextService(matchRepository);
+
+export const adminDeleteMatchService = new AdminDeleteMatchService(
+  matchRepository,
+  joinRequestRepository,
+  watchRepository,
+  adminMatchDeletionRepository,
+);
+
+export const adminCancelMatchService = new AdminCancelMatchService(
+  matchRepository,
+  cancelMatchService,
+);
+
+// Re-export for the admin edit route (needs matchRepository for captainId pre-read).
+export { matchRepository };
+// Re-export types consumed by admin route handlers.
+export type { AdminMatchStatus };

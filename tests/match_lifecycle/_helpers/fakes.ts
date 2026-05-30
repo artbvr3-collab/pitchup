@@ -22,6 +22,7 @@ import type {
   AdminUserListFilters,
   UserRepository,
 } from "@/src/auth/domain/user-repository";
+import type { AdminMatchDeletionRepository } from "@/src/match_lifecycle/domain/admin-match-deletion-repository";
 import {
   asChatMessageId,
   type ChatMessage,
@@ -66,12 +67,15 @@ import {
   type MatchId,
 } from "@/src/match_lifecycle/domain/match";
 import type {
+  AdminMatchRow,
   CreateMatchPersistenceInput,
   FindDiscoverPageOptions,
   FindDiscoverPageResult,
+  FindForAdminOptions,
   FindMapMatchesOptions,
   FindMapMatchesResult,
   MatchRepository,
+  UpdateMatchFlags,
   UpdateMatchPatch,
 } from "@/src/match_lifecycle/domain/match-repository";
 import type {
@@ -285,6 +289,35 @@ export class FakeMatchRepository implements MatchRepository {
     _options: FindMapMatchesOptions,
   ): Promise<FindMapMatchesResult> {
     return { rows: [] };
+  }
+
+  async findForAdmin(_options: FindForAdminOptions): Promise<readonly AdminMatchRow[]> {
+    return [];
+  }
+
+  async updateFlags(
+    id: MatchId,
+    flags: UpdateMatchFlags,
+  ): Promise<{ descriptionHidden: boolean; cancelReasonHidden: boolean } | null> {
+    const match = this.matches.get(id);
+    if (!match) return null;
+    // Apply flags to the in-memory match (fakes store them on the match object).
+    const updated = {
+      ...match,
+      descriptionHidden:
+        flags.descriptionHidden !== undefined
+          ? flags.descriptionHidden
+          : (match as Match & { descriptionHidden?: boolean }).descriptionHidden ?? false,
+      cancelReasonHidden:
+        flags.cancelReasonHidden !== undefined
+          ? flags.cancelReasonHidden
+          : (match as Match & { cancelReasonHidden?: boolean }).cancelReasonHidden ?? false,
+    };
+    this.matches.set(id, updated);
+    return {
+      descriptionHidden: updated.descriptionHidden,
+      cancelReasonHidden: updated.cancelReasonHidden,
+    };
   }
 
   async findActiveStartingInWindow(
@@ -952,6 +985,32 @@ export class FakeEmailSender implements EmailSender {
  * FakeEmailSender. The real adapter publishes to Ably; here we only assert the
  * service calls the port with the correct payload and survives a throw.
  */
+export class FakeAdminMatchDeletionRepository
+  implements AdminMatchDeletionRepository
+{
+  readonly records: { matchId: string; affectedUserIds: readonly string[] }[] = [];
+  private deletedCount = 0;
+
+  async record(matchId: string, affectedUserIds: readonly string[]): Promise<void> {
+    this.records.push({ matchId, affectedUserIds });
+  }
+
+  async findForUserSince(_userId: string, _since: Date): Promise<readonly string[]> {
+    return [];
+  }
+
+  async deleteOlderThan(_before: Date): Promise<number> {
+    const n = this.deletedCount;
+    this.deletedCount = 0;
+    return n;
+  }
+
+  /** Test helper: prime the delete count for the next call. */
+  setDeleteCount(n: number): void {
+    this.deletedCount = n;
+  }
+}
+
 export class FakeChatRealtimePublisher implements ChatRealtimePublisher {
   readonly created: { matchId: string; event: ChatMessageCreatedEvent }[] = [];
   readonly deleted: { matchId: string; event: ChatMessageDeletedEvent }[] = [];

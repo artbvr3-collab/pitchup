@@ -273,6 +273,24 @@ model ReminderSent {
   @@map("reminder_sent")
 }
 
+/// Ephemeral tombstone for admin hard-deleted matches (Layer 9c).
+/// When an admin hard-deletes a match all child rows (JoinRequest, Watch, etc.)
+/// cascade, so the global poll (UpdatesStateService) can no longer derive the
+/// affected users' relationships. This table stores the affected user IDs for
+/// ≤24 h so the next poll can emit { action: 'admin_deleted' }. Cleaned by
+/// InboxTtlService. No FK on `matchId` — the match is gone.
+model AdminMatchDeletion {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Stored as TEXT — no FK; the match row has been deleted.
+  matchId         String   @map("match_id")
+  deletedAt       DateTime @default(now()) @map("deleted_at") @db.Timestamptz(6)
+  /// Captain + accepted + pending + watching user IDs captured before deletion.
+  affectedUserIds String[] @default([]) @map("affected_user_ids") @db.Uuid
+
+  @@index([deletedAt])
+  @@map("admin_match_deletions")
+}
+
 /// Append-only audit log of admin role/ban actions (Layer 9). Every
 /// `promote` / `demote` / `ban` / `unban` taken in `/admin/users` writes one
 /// row: who acted, on whom, what, and the required reason text. In v1 the log

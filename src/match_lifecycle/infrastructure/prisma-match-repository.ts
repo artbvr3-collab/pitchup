@@ -31,13 +31,16 @@ import { asUserId } from "@/src/auth/domain/user";
 import type { TransactionClient } from "@/src/shared/db/types";
 import { asMatchId, type Match, type MatchId, type MatchWithVenue } from "../domain/match";
 import type {
+  AdminMatchRow,
   CreateMatchPersistenceInput,
   DiscoverTimeOfDay,
   FindDiscoverPageOptions,
   FindDiscoverPageResult,
+  FindForAdminOptions,
   FindMapMatchesOptions,
   FindMapMatchesResult,
   MatchRepository,
+  UpdateMatchFlags,
   UpdateMatchPatch,
 } from "../domain/match-repository";
 import { asVenueId, type Surface, type Venue } from "../domain/venue";
@@ -416,6 +419,89 @@ export class PrismaMatchRepository implements MatchRepository {
     `);
 
     return { rows: rows.map(mapToDomain) };
+  }
+
+  async findForAdmin(
+    options: FindForAdminOptions,
+  ): Promise<readonly AdminMatchRow[]> {
+    const search = options.search.trim();
+    const rows = await this.prisma.match.findMany({
+      take: options.limit,
+      orderBy: [{ startTime: "desc" }, { id: "asc" }],
+      include: {
+        venue: { select: { name: true } },
+        captain: { select: { id: true, name: true } },
+        joinRequests: {
+          where: { status: "accepted" },
+          select: { guestCount: true },
+        },
+      },
+      where: {
+        AND: [
+          search
+            ? {
+                OR: [
+                  { venue: { name: { contains: search, mode: "insensitive" } } },
+                  { captain: { name: { contains: search, mode: "insensitive" } } },
+                ],
+              }
+            : {},
+        ],
+      },
+    });
+
+    return rows.map((r) => ({
+      id: r.id,
+      venueName: r.venue.name,
+      captainName: r.captain.name,
+      captainId: r.captain.id,
+      startTime: r.startTime,
+      duration: r.duration,
+      totalSpots: r.totalSpots,
+      captainCrewLength: r.captainCrew.length,
+      acceptedCount: r.joinRequests.reduce(
+        (acc, jr) => acc + 1 + jr.guestCount,
+        0,
+      ),
+      cancelledAt: r.cancelledAt,
+      description: r.description,
+      descriptionHidden: r.descriptionHidden,
+      cancelReason: r.cancelReason,
+      cancelReasonHidden: r.cancelReasonHidden,
+      updatedAt: r.updatedAt,
+    }));
+  }
+
+  async updateFlags(
+    id: MatchId,
+    flags: UpdateMatchFlags,
+  ): Promise<{ descriptionHidden: boolean; cancelReasonHidden: boolean } | null> {
+    try {
+      const row = await this.prisma.match.update({
+        where: { id },
+        data: {
+          ...(flags.descriptionHidden !== undefined
+            ? { descriptionHidden: flags.descriptionHidden }
+            : {}),
+          ...(flags.cancelReasonHidden !== undefined
+            ? { cancelReasonHidden: flags.cancelReasonHidden }
+            : {}),
+        },
+        select: { descriptionHidden: true, cancelReasonHidden: true },
+      });
+      return {
+        descriptionHidden: row.descriptionHidden,
+        cancelReasonHidden: row.cancelReasonHidden,
+      };
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2025"
+      ) {
+        return null;
+      }
+      throw e;
+    }
   }
 }
 

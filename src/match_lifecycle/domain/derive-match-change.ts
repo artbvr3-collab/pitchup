@@ -42,7 +42,13 @@
 import { deriveMyStatus, type MyStatus } from "./derive-my-status";
 import type { JoinRequestAutoReason, JoinRequestStatus } from "./join-request";
 
-/** Closed set of `action` values the poll emits in v1 (no `admin_deleted`). */
+/**
+ * Closed set of `action` values the global poll emits. Most are produced by
+ * `deriveMatchChange()` (which reads live DB state). `admin_deleted` is the
+ * exception — it is NEVER returned by `deriveMatchChange`; instead
+ * `UpdatesStateService` prepends it from the `admin_match_deletions` tombstone
+ * table (Layer 9c). The union is here so the wire shape has one canonical type.
+ */
 export type MatchChangeAction =
   | "requested"
   | "request_cancelled"
@@ -52,7 +58,8 @@ export type MatchChangeAction =
   | "match_cancelled"
   | "left"
   | "kicked"
-  | "match_updated";
+  | "match_updated"
+  | "admin_deleted";
 
 /** Poll-payload `my_status` — the on-read enum plus the UI-only `kicked`. */
 export type PollMyStatus = MyStatus | "kicked";

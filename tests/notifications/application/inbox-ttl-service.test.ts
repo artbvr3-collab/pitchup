@@ -11,6 +11,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  INBOX_TTL_ADMIN_MATCH_DELETIONS_HOURS,
   INBOX_TTL_NOTIFICATIONS_DAYS,
   INBOX_TTL_REMINDER_SENT_DAYS,
   INBOX_TTL_WATCH_DAYS,
@@ -18,6 +19,7 @@ import {
 } from "@/src/notifications/application/inbox-ttl-service";
 
 import {
+  FakeAdminMatchDeletionRepository,
   FakeNotificationRepository,
   FakeReminderSentRepository,
   FakeWatchRepository,
@@ -29,8 +31,14 @@ function setup() {
   const notifications = new FakeNotificationRepository();
   const reminders = new FakeReminderSentRepository();
   const watches = new FakeWatchRepository();
-  const service = new InboxTtlService({ notifications, reminders, watches });
-  return { notifications, reminders, watches, service };
+  const adminMatchDeletions = new FakeAdminMatchDeletionRepository();
+  const service = new InboxTtlService({
+    notifications,
+    reminders,
+    watches,
+    adminMatchDeletions,
+  });
+  return { notifications, reminders, watches, adminMatchDeletions, service };
 }
 
 describe("InboxTtlService", () => {
@@ -85,10 +93,11 @@ describe("InboxTtlService", () => {
   });
 
   it("propagates the deleted counts from each port back to the caller", async () => {
-    const { service, notifications, reminders, watches } = setup();
+    const { service, notifications, reminders, watches, adminMatchDeletions } = setup();
     notifications.deleteOlderThanResult = 42;
     reminders.deleteForMatchesStartingBeforeResult = 7;
     watches.deleteForMatchesStartingBeforeResult = 3;
+    adminMatchDeletions.setDeleteCount(2);
 
     const result = await service.run(new Date("2026-05-30T01:00:00.000Z"));
 
@@ -96,6 +105,7 @@ describe("InboxTtlService", () => {
       notificationsDeleted: 42,
       remindersDeleted: 7,
       watchesDeleted: 3,
+      adminMatchDeletionsDeleted: 2,
     });
   });
 
@@ -108,7 +118,28 @@ describe("InboxTtlService", () => {
       notificationsDeleted: 0,
       remindersDeleted: 0,
       watchesDeleted: 0,
+      adminMatchDeletionsDeleted: 0,
     });
+  });
+
+  it("also verifies admin_match_deletions TTL uses 24h cutoff", async () => {
+    const { service, adminMatchDeletions } = setup();
+    const now = new Date("2026-05-30T01:00:00.000Z");
+    const calls: Date[] = [];
+    const origDeleteOlderThan = adminMatchDeletions.deleteOlderThan.bind(adminMatchDeletions);
+    adminMatchDeletions.deleteOlderThan = async (before) => {
+      calls.push(before);
+      return origDeleteOlderThan(before);
+    };
+
+    await service.run(now);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.toISOString()).toBe(
+      new Date(
+        now.getTime() - INBOX_TTL_ADMIN_MATCH_DELETIONS_HOURS * 60 * 60 * 1000,
+      ).toISOString(),
+    );
   });
 
   it("is idempotent — a second back-to-back run hits the ports again with the same shape", async () => {

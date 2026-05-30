@@ -273,4 +273,63 @@ export interface MatchRepository {
    * `computeSlots` + `deriveMatchStatus` and filters out Cancelled / Ended.
    */
   findMapMatches(options: FindMapMatchesOptions): Promise<FindMapMatchesResult>;
+
+  /**
+   * Layer 9c — admin match list. Returns all matches (any status, including
+   * Cancelled + Ended) with venue join, captain info, and accepted slot count
+   * for the "participants" column. Capped at 200 rows (no pagination, same
+   * policy as `listForAdmin` in UserRepository). Optional filters:
+   *   - `search`: case-insensitive substring on venue name or captain name.
+   *   - `status`: whitelist of match statuses derived on-read; if empty all
+   *     statuses are included.
+   * Sorted `start_time DESC` (most recent / future first) so the admin sees
+   * today's matches at the top.
+   */
+  findForAdmin(options: FindForAdminOptions): Promise<readonly AdminMatchRow[]>;
+
+  /**
+   * Layer 9c — no-lock update for the admin hide-flag pair
+   * (`description_hidden`, `cancel_reason_hidden`). Only the provided keys
+   * are updated; `undefined` means "don't touch". No advisory lock — admin
+   * single-tab, these flags have no invariants requiring serialization.
+   * Returns `null` when the match does not exist.
+   */
+  updateFlags(
+    id: MatchId,
+    flags: UpdateMatchFlags,
+  ): Promise<{ descriptionHidden: boolean; cancelReasonHidden: boolean } | null>;
+}
+
+/** Options for the admin match list query. */
+export interface FindForAdminOptions {
+  readonly now: Date;
+  readonly search: string;
+  /** Empty array = any status. */
+  readonly statusFilter: readonly string[];
+  readonly limit: number;
+}
+
+/** Wire shape for one admin match table row. */
+export interface AdminMatchRow {
+  readonly id: string;
+  readonly venueName: string;
+  readonly captainName: string;
+  readonly captainId: string;
+  readonly startTime: Date;
+  readonly duration: number;
+  readonly totalSpots: number;
+  readonly captainCrewLength: number;
+  readonly acceptedCount: number;
+  readonly cancelledAt: Date | null;
+  readonly description: string | null;
+  readonly descriptionHidden: boolean;
+  readonly cancelReason: string | null;
+  readonly cancelReasonHidden: boolean;
+  readonly updatedAt: Date;
+}
+
+/** No-lock flag update for admin hide-text. */
+export interface UpdateMatchFlags {
+  readonly descriptionHidden?: boolean;
+  readonly cancelReasonHidden?: boolean;
 }

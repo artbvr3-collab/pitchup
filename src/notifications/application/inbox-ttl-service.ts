@@ -31,6 +31,7 @@
  *   - docs/spec/pitchup-spec-match.md → "Cron jobs → Inbox TTL cleanup"
  *   - docs/spec/pitchup-app-map.md → "Cron jobs" table
  */
+import type { AdminMatchDeletionRepository } from "@/src/match_lifecycle/domain/admin-match-deletion-repository";
 import type { WatchRepository } from "@/src/match_lifecycle/domain/watch-repository";
 
 import type { NotificationRepository } from "../domain/notification-repository";
@@ -42,17 +43,21 @@ const DAY_MS = 24 * HOUR_MS;
 export const INBOX_TTL_NOTIFICATIONS_DAYS = 30;
 export const INBOX_TTL_REMINDER_SENT_DAYS = 7;
 export const INBOX_TTL_WATCH_DAYS = 1;
+/** admin_match_deletions tombstones: 24 h — one poll cycle is enough. */
+export const INBOX_TTL_ADMIN_MATCH_DELETIONS_HOURS = 24;
 
 export interface InboxTtlPorts {
   readonly notifications: NotificationRepository;
   readonly reminders: ReminderSentRepository;
   readonly watches: WatchRepository;
+  readonly adminMatchDeletions: AdminMatchDeletionRepository;
 }
 
 export interface InboxTtlResult {
   readonly notificationsDeleted: number;
   readonly remindersDeleted: number;
   readonly watchesDeleted: number;
+  readonly adminMatchDeletionsDeleted: number;
 }
 
 export class InboxTtlService {
@@ -63,6 +68,9 @@ export class InboxTtlService {
     const notificationCutoff = new Date(nowMs - INBOX_TTL_NOTIFICATIONS_DAYS * DAY_MS);
     const reminderCutoff = new Date(nowMs - INBOX_TTL_REMINDER_SENT_DAYS * DAY_MS);
     const watchCutoff = new Date(nowMs - INBOX_TTL_WATCH_DAYS * DAY_MS);
+    const adminDeleteCutoff = new Date(
+      nowMs - INBOX_TTL_ADMIN_MATCH_DELETIONS_HOURS * HOUR_MS,
+    );
 
     const notificationsDeleted =
       await this.ports.notifications.deleteOlderThan(notificationCutoff);
@@ -70,7 +78,14 @@ export class InboxTtlService {
       await this.ports.reminders.deleteForMatchesStartingBefore(reminderCutoff);
     const watchesDeleted =
       await this.ports.watches.deleteForMatchesStartingBefore(watchCutoff);
+    const adminMatchDeletionsDeleted =
+      await this.ports.adminMatchDeletions.deleteOlderThan(adminDeleteCutoff);
 
-    return { notificationsDeleted, remindersDeleted, watchesDeleted };
+    return {
+      notificationsDeleted,
+      remindersDeleted,
+      watchesDeleted,
+      adminMatchDeletionsDeleted,
+    };
   }
 }

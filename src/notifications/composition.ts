@@ -15,6 +15,7 @@
  */
 import { userRepository } from "@/src/auth/infrastructure/repositories";
 import {
+  adminMatchDeletionRepository,
   joinRequestRepository,
   matchRepository,
   watchRepository,
@@ -35,12 +36,14 @@ export const updatesStateService = new UpdatesStateService(
   matchRepository,
   joinRequestRepository,
   watchRepository,
+  adminMatchDeletionRepository,
 );
 
 export const inboxTtlService = new InboxTtlService({
   notifications: notificationRepository,
   reminders: reminderSentRepository,
   watches: watchRepository,
+  adminMatchDeletions: adminMatchDeletionRepository,
 });
 
 export const morningReminderService = new MorningReminderService({

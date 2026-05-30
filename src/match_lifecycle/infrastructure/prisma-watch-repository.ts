@@ -76,9 +76,10 @@ export class PrismaWatchRepository implements WatchRepository {
 
   async listForMatch(
     matchId: MatchId,
-    tx: TransactionClient,
+    tx?: TransactionClient,
   ): Promise<readonly UserId[]> {
-    const rows = await tx.watch.findMany({
+    const client = tx ?? this.prisma;
+    const rows = await client.watch.findMany({
       where: { matchId },
       select: { userId: true },
     });

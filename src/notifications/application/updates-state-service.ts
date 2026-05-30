@@ -9,7 +9,8 @@
  *        deriveMatchChange, same pattern as MatchStateService importing
  *        chat/auth — application-layer composition across contexts is allowed).
  * DEPENDENCIES (ports): NotificationRepository (own context), MatchRepository,
- *                       JoinRequestRepository, WatchRepository (match_lifecycle)
+ *                       JoinRequestRepository, WatchRepository,
+ *                       AdminMatchDeletionRepository (match_lifecycle)
  * CONSUMED BY: app/api/updates/state/route.ts
  * INVARIANTS:
  *   - `has_unread_notifications` is a boolean (red dot), never a count.
@@ -41,6 +42,7 @@
  */
 import { asUserId, type UserId } from "@/src/auth/domain/user";
 
+import type { AdminMatchDeletionRepository } from "@/src/match_lifecycle/domain/admin-match-deletion-repository";
 import {
   deriveMatchChange,
   type MatchChange,
@@ -99,6 +101,7 @@ export class UpdatesStateService {
     private readonly matchRepository: MatchRepository,
     private readonly joinRequestRepository: JoinRequestRepository,
     private readonly watchRepository: WatchRepository,
+    private readonly adminMatchDeletionRepository: AdminMatchDeletionRepository,
   ) {}
 
   async execute(input: UpdatesStateInput): Promise<UpdatesStateResponse> {
@@ -136,11 +139,14 @@ export class UpdatesStateService {
     userId: UserId,
     since: Date,
   ): Promise<readonly MatchChange[]> {
-    const [captainMatches, joinRequests, watchedMatchIds] = await Promise.all([
-      this.matchRepository.findCaptainMatches(userId),
-      this.joinRequestRepository.listForUser(userId),
-      this.watchRepository.listMatchIdsForUser(userId),
-    ]);
+    // Query the tombstone table in parallel with the relationship scan.
+    const [captainMatches, joinRequests, watchedMatchIds, adminDeletedMatchIds] =
+      await Promise.all([
+        this.matchRepository.findCaptainMatches(userId),
+        this.joinRequestRepository.listForUser(userId),
+        this.watchRepository.listMatchIdsForUser(userId),
+        this.adminMatchDeletionRepository.findForUserSince(userId, since),
+      ]);
 
     // Build a single map of every match the viewer relates to.
     const matchById = new Map<string, MatchWithVenue>();
@@ -160,6 +166,14 @@ export class UpdatesStateService {
     const watchSet = new Set<string>(watchedMatchIds);
 
     const changes: MatchChange[] = [];
+
+    // Prepend admin_deleted entries — they bypass deriveMatchChange entirely
+    // (the match row and JR rows no longer exist). `my_status: 'none'` per
+    // spec personal.md → "/admin/matches" → "Poll update on Delete".
+    for (const matchId of adminDeletedMatchIds) {
+      changes.push({ matchId, action: "admin_deleted", myStatus: "none" });
+    }
+
     for (const [matchId, match] of matchById) {
       const jr = jrByMatch.get(matchId) ?? null;
       const change = deriveMatchChange({

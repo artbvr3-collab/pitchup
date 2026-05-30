@@ -83,15 +83,14 @@ export interface WatchRepository {
   ): Promise<UpsertWatchOutcome>;
 
   /**
-   * All user ids with a Watch row for the given match. Called by
-   * `notifyWatching` to gather recipients before deletion. Returns ids in
-   * arbitrary order. Caller invokes under the same advisory lock so that
-   * the list captured here is consistent with the subsequent
-   * `deleteAllForMatch`.
+   * All user ids with a Watch row for the given match. Returns ids in
+   * arbitrary order. Pass `tx` from `withMatchLock` when reading inside the
+   * advisory lock (e.g. `notifyWatching`); omit it for unlocked reads (e.g.
+   * admin delete pre-scan — captains/slot mutations are not in flight here).
    */
   listForMatch(
     matchId: MatchId,
-    tx: TransactionClient,
+    tx?: TransactionClient,
   ): Promise<readonly UserId[]>;
 
   /**
