@@ -215,6 +215,29 @@ export class FakeMatchRepository implements MatchRepository {
     });
   }
 
+  /**
+   * Layer 7b cron #3 fake — the real query joins matches × join_requests; the
+   * fake instead consults a test-seeded set. Tests opt in via `markHasPending`.
+   * Filters by `startTime <= now` against the put() match data.
+   */
+  private hasPending = new Set<MatchId>();
+
+  /** Mark a (previously put()) match as having at least one pending JR. */
+  markHasPending(matchId: MatchId): void {
+    this.hasPending.add(matchId);
+  }
+
+  async findMatchIdsWithPendingStartedBefore(
+    now: Date,
+  ): Promise<readonly MatchId[]> {
+    const out: MatchId[] = [];
+    for (const id of this.hasPending) {
+      const m = this.matches.get(id);
+      if (m && m.startTime.getTime() <= now.getTime()) out.push(id);
+    }
+    return out;
+  }
+
   private attachVenue(m: Match): MatchWithVenue {
     return { ...m, venue: this.venuesByMatch.get(m.id) ?? FAKE_VENUE };
   }

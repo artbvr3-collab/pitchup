@@ -67,6 +67,10 @@ class FakeMatchRepository implements MatchRepository {
   async cancel(): Promise<void> {
     throw new Error("cancel() not used in create-match tests");
   }
+
+  async findMatchIdsWithPendingStartedBefore(): Promise<readonly never[]> {
+    return [];
+  }
 }
 
 class FakeVenueRepository implements VenueRepository {

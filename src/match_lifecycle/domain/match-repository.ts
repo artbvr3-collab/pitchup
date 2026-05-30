@@ -179,4 +179,23 @@ export interface MatchRepository {
     cancelReason: string,
     tx: TransactionClient,
   ): Promise<void>;
+
+  /**
+   * Layer 7b cron #3 (auto-reject pending on match start, every 5 min):
+   * return the distinct ids of matches whose `start_time <= now` AND which
+   * still have at least one `JoinRequest.status='pending'` row. Service
+   * then iterates the list and processes each match under its own
+   * advisory lock.
+   *
+   * Returned in arbitrary order; caller doesn't sort. Empty array is a
+   * normal outcome (no eligible matches in this 5-min window) and short-
+   * circuits the cron loop.
+   *
+   * Unlocked read — no transaction. Spec match.md → "Cron jobs → Cron
+   * auto-reject pending on match start" + per-endpoint checklist → "Cron
+   * auto-reject pending".
+   */
+  findMatchIdsWithPendingStartedBefore(
+    now: Date,
+  ): Promise<readonly MatchId[]>;
 }
