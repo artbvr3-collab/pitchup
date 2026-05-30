@@ -1,0 +1,464 @@
+/**
+ * MODULE: app.admin.venues.admin-venues-table
+ * PURPOSE: The `/admin/venues` table + the single Add/Edit modal form. Client
+ *          island: renders server-fetched rows (name / address / surface(s) /
+ *          status / Google Maps link + [Edit]), owns the form state, POSTs
+ *          (create) / PATCHes (update) to `/api/admin/venues`, and
+ *          `router.refresh()`es on success. The deactivation guard is mirrored
+ *          here (toggle disabled + hint when the venue has upcoming matches);
+ *          the API re-checks (409 backstop).
+ * LAYER: interfaces (client island)
+ * DEPENDENCIES: next/navigation, src/ui/components/{button, input, switch,
+ *               sheet}, src/match_lifecycle/domain/covers,
+ *               src/ui/lib/cover-style
+ * CONSUMED BY: app/admin/venues/page.tsx
+ * INVARIANTS:
+ *   - One modal for both [+ Add venue] and [Edit] (spec — no inline cell edit).
+ *   - Add omits `cover_id` when the picker is left on "Auto" → the server
+ *     applies the deterministic-by-id default. Edit always sends `cover_id`.
+ *   - Deactivation guard: when editing an `active` venue with
+ *     `upcomingMatchCount > 0`, the Active toggle is disabled and the spec hint
+ *     is shown; the toggle can't be flipped so Save can't deactivate it.
+ *   - Surface must be a non-empty subset of {grass, hard} (Save disabled
+ *     otherwise) — backend Zod re-checks.
+ * RELATED DOCS: docs/spec/pitchup-spec-personal.md → "/admin/venues".
+ */
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+
+import { COVER_IDS } from "@/src/match_lifecycle/domain/covers";
+import { Button } from "@/src/ui/components/button";
+import { Input } from "@/src/ui/components/input";
+import { Sheet } from "@/src/ui/components/sheet";
+import { Switch } from "@/src/ui/components/switch";
+import { coverBackground, coverIcon } from "@/src/ui/lib/cover-style";
+
+export interface AdminVenueRow {
+  readonly id: string;
+  readonly name: string;
+  readonly address: string;
+  readonly lat: number;
+  readonly lng: number;
+  readonly googleMapsUrl: string | null;
+  readonly surface: readonly ("grass" | "hard")[];
+  readonly coverId: string;
+  readonly active: boolean;
+  readonly upcomingMatchCount: number;
+}
+
+const SURFACE_LABELS: Record<"grass" | "hard", string> = {
+  grass: "Grass",
+  hard: "Hard surface",
+};
+
+const ERROR_MESSAGES: Record<string, string> = {
+  validation_failed: "Please check the fields and try again.",
+  venue_not_found: "Venue not found.",
+  admin_required: "You no longer have admin rights.",
+  forbidden: "You no longer have admin rights.",
+};
+
+interface FormState {
+  name: string;
+  address: string;
+  lat: string;
+  lng: string;
+  grass: boolean;
+  hard: boolean;
+  /** `null` = "Auto" (only selectable when adding). */
+  coverId: string | null;
+  googleMapsUrl: string;
+  active: boolean;
+}
+
+type ModalState =
+  | { readonly mode: "add" }
+  | { readonly mode: "edit"; readonly venue: AdminVenueRow };
+
+function blankForm(): FormState {
+  return {
+    name: "",
+    address: "",
+    lat: "",
+    lng: "",
+    grass: false,
+    hard: false,
+    coverId: null,
+    googleMapsUrl: "",
+    active: true,
+  };
+}
+
+function formFromVenue(v: AdminVenueRow): FormState {
+  return {
+    name: v.name,
+    address: v.address,
+    lat: String(v.lat),
+    lng: String(v.lng),
+    grass: v.surface.includes("grass"),
+    hard: v.surface.includes("hard"),
+    coverId: v.coverId,
+    googleMapsUrl: v.googleMapsUrl ?? "",
+    active: v.active,
+  };
+}
+
+export function AdminVenuesTable({ rows }: { readonly rows: readonly AdminVenueRow[] }) {
+  const router = useRouter();
+  const [modal, setModal] = useState<ModalState | null>(null);
+  const [form, setForm] = useState<FormState>(blankForm);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  function openAdd(): void {
+    setModal({ mode: "add" });
+    setForm(blankForm());
+    setError(null);
+  }
+
+  function openEdit(venue: AdminVenueRow): void {
+    setModal({ mode: "edit", venue });
+    setForm(formFromVenue(venue));
+    setError(null);
+  }
+
+  function patch(partial: Partial<FormState>): void {
+    setForm((f) => ({ ...f, ...partial }));
+  }
+
+  // Deactivation guard (UI mirror): editing an active venue that still has
+  // upcoming matches → the toggle is locked on.
+  const upcomingCount = modal?.mode === "edit" ? modal.venue.upcomingMatchCount : 0;
+  const editingActiveWithUpcoming =
+    modal?.mode === "edit" && modal.venue.active && upcomingCount > 0;
+
+  const surfaceChosen = form.grass || form.hard;
+  const latLngValid =
+    form.lat.trim() !== "" &&
+    form.lng.trim() !== "" &&
+    Number.isFinite(Number(form.lat)) &&
+    Number.isFinite(Number(form.lng));
+  const canSave =
+    !pending &&
+    form.name.trim() !== "" &&
+    form.address.trim() !== "" &&
+    surfaceChosen &&
+    latLngValid;
+
+  async function save(): Promise<void> {
+    if (!modal || !canSave) return;
+    setPending(true);
+    setError(null);
+
+    const surface: ("grass" | "hard")[] = [];
+    if (form.grass) surface.push("grass");
+    if (form.hard) surface.push("hard");
+
+    const base = {
+      name: form.name.trim(),
+      address: form.address.trim(),
+      lat: Number(form.lat),
+      lng: Number(form.lng),
+      surface,
+      google_maps_url: form.googleMapsUrl.trim() === "" ? null : form.googleMapsUrl.trim(),
+      active: form.active,
+    };
+
+    const editVenue = modal.mode === "edit" ? modal.venue : null;
+    const url = editVenue ? `/api/admin/venues/${editVenue.id}` : "/api/admin/venues";
+    // Edit always sends a cover (form prefilled); Add omits it on "Auto".
+    const coverId = form.coverId ?? editVenue?.coverId ?? null;
+    const body =
+      coverId !== null ? { ...base, cover_id: coverId } : base;
+
+    try {
+      const res = await fetch(url, {
+        method: editVenue ? "PATCH" : "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as {
+          code?: string;
+          meta?: { upcomingMatchCount?: number };
+        };
+        if (data.code === "venue_has_upcoming_matches") {
+          const n = data.meta?.upcomingMatchCount ?? "some";
+          setError(
+            `Can't deactivate — ${n} upcoming match(es) on this venue. Cancel them first or wait until they end.`,
+          );
+        } else {
+          setError(ERROR_MESSAGES[data.code ?? ""] ?? "Something went wrong. Try again.");
+        }
+        return;
+      }
+      setModal(null);
+      router.refresh();
+    } catch {
+      setError("Something went wrong. Try again.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="flex justify-end px-4 pb-2">
+        <button
+          type="button"
+          onClick={openAdd}
+          className="h-9 rounded-lg bg-green-dark px-3 text-[13px] font-semibold text-text-inverted transition-opacity hover:opacity-90"
+        >
+          + Add venue
+        </button>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] border-collapse text-[13px]">
+          <thead>
+            <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-text-muted">
+              <th className="px-3 py-2 font-medium">Venue</th>
+              <th className="px-3 py-2 font-medium">Surface</th>
+              <th className="px-3 py-2 font-medium">Status</th>
+              <th className="px-3 py-2 font-medium">Map</th>
+              <th className="px-3 py-2 font-medium">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-3 py-6 text-center text-text-muted">
+                  No venues yet
+                </td>
+              </tr>
+            ) : (
+              rows.map((v) => (
+                <tr key={v.id} className="border-b border-border align-middle">
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[13px]"
+                        style={{ background: coverBackground(v.coverId) }}
+                        aria-hidden
+                      >
+                        {coverIcon(v.coverId)}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{v.name}</div>
+                        <div className="truncate text-[11px] text-text-muted">
+                          {v.address}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-text-secondary">
+                    {v.surface.map((s) => SURFACE_LABELS[s]).join(", ")}
+                  </td>
+                  <td className="px-3 py-2">
+                    <span className={v.active ? "text-text-secondary" : "text-text-muted"}>
+                      {v.active ? "Active" : "Inactive"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2">
+                    {v.googleMapsUrl ? (
+                      <a
+                        href={v.googleMapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-green-dark underline"
+                      >
+                        Open
+                      </a>
+                    ) : (
+                      <span className="text-text-muted">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => openEdit(v)}
+                      className="h-8 whitespace-nowrap rounded-lg border-[1.5px] border-border px-2.5 text-[12px] font-medium text-text-primary transition-colors hover:bg-bg-surface"
+                    >
+                      Edit
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <Sheet
+        open={modal !== null}
+        onClose={() => setModal(null)}
+        ariaLabel={modal?.mode === "edit" ? "Edit venue" : "Add venue"}
+      >
+        {modal && (
+          <div className="flex max-h-[80vh] flex-col gap-3 overflow-y-auto p-4">
+            <h2 className="text-[17px] font-bold">
+              {modal.mode === "edit" ? "Edit venue" : "Add venue"}
+            </h2>
+
+            <Field label="Name">
+              <Input
+                value={form.name}
+                onChange={(e) => patch({ name: e.target.value })}
+                maxLength={100}
+                placeholder="Strahov — Field 3"
+              />
+            </Field>
+
+            <Field label="Address">
+              <Input
+                value={form.address}
+                onChange={(e) => patch({ address: e.target.value })}
+                maxLength={200}
+                placeholder="Vaníčkova 2, 169 00 Praha 6"
+              />
+            </Field>
+
+            <div className="flex gap-2">
+              <Field label="Lat" className="flex-1">
+                <Input
+                  type="number"
+                  step="any"
+                  value={form.lat}
+                  onChange={(e) => patch({ lat: e.target.value })}
+                  placeholder="50.0793"
+                />
+              </Field>
+              <Field label="Lng" className="flex-1">
+                <Input
+                  type="number"
+                  step="any"
+                  value={form.lng}
+                  onChange={(e) => patch({ lng: e.target.value })}
+                  placeholder="14.3879"
+                />
+              </Field>
+            </div>
+
+            <Field label="Surface(s)">
+              <div className="flex gap-2">
+                {(["grass", "hard"] as const).map((s) => {
+                  const on = s === "grass" ? form.grass : form.hard;
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() =>
+                        patch(s === "grass" ? { grass: !form.grass } : { hard: !form.hard })
+                      }
+                      className={
+                        "h-9 rounded-lg border-[1.5px] px-3 text-[13px] font-medium transition-colors " +
+                        (on
+                          ? "border-green-dark bg-green-dark text-text-inverted"
+                          : "border-border text-text-primary hover:bg-bg-surface")
+                      }
+                    >
+                      {SURFACE_LABELS[s]}
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+
+            <Field label="Cover">
+              <div className="grid grid-cols-6 gap-1.5">
+                {modal.mode === "add" && (
+                  <button
+                    type="button"
+                    onClick={() => patch({ coverId: null })}
+                    title="Auto (by venue)"
+                    className={
+                      "flex aspect-square items-center justify-center rounded-md border-[1.5px] text-[10px] font-medium " +
+                      (form.coverId === null
+                        ? "border-green-dark text-green-dark"
+                        : "border-border text-text-muted")
+                    }
+                  >
+                    Auto
+                  </button>
+                )}
+                {COVER_IDS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => patch({ coverId: c })}
+                    title={c}
+                    style={{ background: coverBackground(c) }}
+                    className={
+                      "flex aspect-square items-center justify-center rounded-md text-[14px] ring-offset-2 transition-shadow " +
+                      (form.coverId === c ? "ring-2 ring-green-dark" : "")
+                    }
+                    aria-label={`Cover ${c}`}
+                  >
+                    {coverIcon(c)}
+                  </button>
+                ))}
+              </div>
+            </Field>
+
+            <Field label="Google Maps URL">
+              <Input
+                type="url"
+                value={form.googleMapsUrl}
+                onChange={(e) => patch({ googleMapsUrl: e.target.value })}
+                placeholder="https://maps.google.com/..."
+              />
+            </Field>
+
+            <div className="flex items-center justify-between rounded-lg border-[1.5px] border-border px-3 py-2">
+              <div className="min-w-0">
+                <div className="text-[14px] font-medium">Active</div>
+                {editingActiveWithUpcoming && (
+                  <div className="mt-0.5 text-[11px] text-text-muted">
+                    Can&apos;t deactivate — {upcomingCount} upcoming match(es) on this
+                    venue. Cancel them first or wait until they end.
+                  </div>
+                )}
+              </div>
+              <Switch
+                checked={form.active}
+                onCheckedChange={(v) => patch({ active: v })}
+                disabled={editingActiveWithUpcoming}
+                aria-label="Active"
+              />
+            </div>
+
+            {error && <p className="text-[13px] text-destructive">{error}</p>}
+
+            <div className="flex gap-2 pt-1">
+              <Button variant="ghost" onClick={() => setModal(null)} disabled={pending}>
+                Cancel
+              </Button>
+              <Button onClick={save} disabled={!canSave}>
+                Save
+              </Button>
+            </div>
+          </div>
+        )}
+      </Sheet>
+    </>
+  );
+}
+
+function Field({
+  label,
+  children,
+  className,
+}: {
+  readonly label: string;
+  readonly children: React.ReactNode;
+  readonly className?: string;
+}) {
+  return (
+    <label className={"flex flex-col gap-1 " + (className ?? "")}>
+      <span className="text-[12px] font-medium text-text-secondary">{label}</span>
+      {children}
+    </label>
+  );
+}

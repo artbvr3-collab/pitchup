@@ -31,8 +31,18 @@ import type {
   FindDiscoverPageResult,
   MatchRepository,
 } from "@/src/match_lifecycle/domain/match-repository";
-import { asVenueId, type Surface, type Venue } from "@/src/match_lifecycle/domain/venue";
-import type { VenueRepository } from "@/src/match_lifecycle/domain/venue-repository";
+import {
+  asVenueId,
+  type Surface,
+  type Venue,
+  type VenueId,
+} from "@/src/match_lifecycle/domain/venue";
+import type {
+  AdminVenueView,
+  CreateVenueInput,
+  VenueRepository,
+  VenueWriteFields,
+} from "@/src/match_lifecycle/domain/venue-repository";
 
 class FakeMatchRepository implements MatchRepository {
   public created: CreateMatchPersistenceInput[] = [];
@@ -98,6 +108,27 @@ class FakeVenueRepository implements VenueRepository {
 
   async findById(id: ReturnType<typeof asVenueId>): Promise<Venue | null> {
     return this.venues.get(id) ?? null;
+  }
+
+  // Layer 9b admin write side — not exercised by CreateMatchService tests.
+  async listAllForAdmin(): Promise<readonly AdminVenueView[]> {
+    return [...this.venues.values()].map((v) => ({ ...v, upcomingMatchCount: 0 }));
+  }
+
+  async create(input: CreateVenueInput): Promise<Venue> {
+    const venue: Venue = { ...input, id: asVenueId(input.id) };
+    this.put(venue);
+    return venue;
+  }
+
+  async update(id: VenueId, patch: VenueWriteFields): Promise<Venue> {
+    const venue: Venue = { ...patch, id };
+    this.put(venue);
+    return venue;
+  }
+
+  async countUpcomingNonCancelledAtVenue(): Promise<number> {
+    return 0;
   }
 }
 

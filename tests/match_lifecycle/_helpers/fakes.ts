@@ -74,10 +74,17 @@ import type {
   MatchRepository,
   UpdateMatchPatch,
 } from "@/src/match_lifecycle/domain/match-repository";
-import type { VenueRepository } from "@/src/match_lifecycle/domain/venue-repository";
+import type {
+  AdminVenueListFilters,
+  AdminVenueView,
+  CreateVenueInput,
+  VenueRepository,
+  VenueWriteFields,
+} from "@/src/match_lifecycle/domain/venue-repository";
 import {
   asVenueId,
   type Surface,
+  type VenueId,
 } from "@/src/match_lifecycle/domain/venue";
 import type {
   UpsertWatchOutcome,
@@ -327,12 +334,71 @@ export class FakeVenueRepository implements VenueRepository {
     this.venues.set(v.id, v);
   }
 
+  /** Per-venue upcoming non-cancelled match counts (drives the guard). */
+  public upcomingCounts = new Map<string, number>();
+  /** Capture of `create`/`update` calls for assertions. */
+  public created: CreateVenueInput[] = [];
+  public updated: Array<{ id: string; patch: VenueWriteFields }> = [];
+
   async listActive(): Promise<readonly Venue[]> {
     return [...this.venues.values()].filter((v) => v.active);
   }
 
   async findById(id: string): Promise<Venue | null> {
     return this.venues.get(id) ?? null;
+  }
+
+  async listAllForAdmin(
+    filters: AdminVenueListFilters,
+  ): Promise<readonly AdminVenueView[]> {
+    return [...this.venues.values()]
+      .filter((v) =>
+        filters.status === undefined
+          ? true
+          : v.active === (filters.status === "active"),
+      )
+      .map((v) => ({ ...v, upcomingMatchCount: this.upcomingCounts.get(v.id) ?? 0 }));
+  }
+
+  async create(input: CreateVenueInput): Promise<Venue> {
+    this.created.push(input);
+    const venue: Venue = {
+      id: asVenueId(input.id),
+      name: input.name,
+      address: input.address,
+      lat: input.lat,
+      lng: input.lng,
+      googleMapsUrl: input.googleMapsUrl,
+      surface: input.surface,
+      coverId: input.coverId,
+      active: input.active,
+    };
+    this.put(venue);
+    return venue;
+  }
+
+  async update(id: VenueId, patch: VenueWriteFields): Promise<Venue> {
+    this.updated.push({ id, patch });
+    const venue: Venue = {
+      id,
+      name: patch.name,
+      address: patch.address,
+      lat: patch.lat,
+      lng: patch.lng,
+      googleMapsUrl: patch.googleMapsUrl,
+      surface: patch.surface,
+      coverId: patch.coverId,
+      active: patch.active,
+    };
+    this.put(venue);
+    return venue;
+  }
+
+  async countUpcomingNonCancelledAtVenue(
+    id: VenueId,
+    _now: Date,
+  ): Promise<number> {
+    return this.upcomingCounts.get(id) ?? 0;
   }
 }
 

@@ -86,6 +86,26 @@ export class VenueInactiveError extends AppError {
   }
 }
 
+/**
+ * `409 venue_has_upcoming_matches` — admin tried to deactivate a venue that
+ * still has ≥1 non-cancelled match with `start_time > now()` (Layer 9b →
+ * `/admin/venues` deactivation guard). `meta.upcomingMatchCount` carries N so
+ * the UI can compose the spec hint ("Can't deactivate — N upcoming match(es)
+ * on this venue. Cancel them first or wait until they end."). The toggle is
+ * disabled in the form; this is the curl / stale-tab backstop.
+ * Spec personal.md → "/admin/venues" → "Guard against deactivation".
+ */
+export class VenueHasUpcomingMatchesError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super(
+      "venue_has_upcoming_matches",
+      "Can't deactivate a venue with upcoming matches",
+      409,
+      meta,
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Layer 4 — Join / Approve / Reject
 // Codes mirror docs/spec/pitchup-spec-match.md → "Per-endpoint checklist".

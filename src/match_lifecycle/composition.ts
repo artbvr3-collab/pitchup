@@ -26,6 +26,7 @@ import { AutoRejectPendingService } from "./application/auto-reject-pending-serv
 import { CancelJoinRequestService } from "./application/cancel-join-request-service";
 import { CancelMatchService } from "./application/cancel-match-service";
 import { CreateMatchService } from "./application/create-match-service";
+import { CreateVenueService } from "./application/create-venue-service";
 import { EditMatchService } from "./application/edit-match-service";
 import { JoinMatchService } from "./application/join-match-service";
 import { KickPlayerService } from "./application/kick-player-service";
@@ -37,6 +38,7 @@ import { ListVenuesService } from "./application/list-venues-service";
 import { MatchStateService } from "./application/match-state-service";
 import { RejectJoinRequestService } from "./application/reject-join-request-service";
 import { UnwatchMatchService } from "./application/unwatch-match-service";
+import { UpdateVenueService } from "./application/update-venue-service";
 import { WatchMatchService } from "./application/watch-match-service";
 import {
   joinRequestRepository,
@@ -57,6 +59,14 @@ export const createMatchService = new CreateMatchService(
 );
 
 export const listVenuesService = new ListVenuesService(venueRepository);
+
+export const createVenueService = new CreateVenueService(venueRepository);
+
+export const updateVenueService = new UpdateVenueService(venueRepository);
+
+// Re-exported for the `/admin/venues` Server Component (direct read of the
+// admin venue list), mirroring `auth/composition`'s `userRepository` export.
+export { venueRepository };
 
 export const joinMatchService = new JoinMatchService(
   matchRepository,
