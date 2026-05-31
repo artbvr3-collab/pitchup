@@ -1,0 +1,26 @@
+# PITCHUP — host crontab: the 4 scheduled jobs + nightly Postgres backup.
+#
+# Install on the VPS (adjust the /opt/pitchup paths first if your checkout
+# lives elsewhere):
+#   crontab deploy/crontab.example      # or paste into `crontab -e`
+#
+# Times are Prague-local via CRON_TZ (DST-correct on both 2026 DST Sundays).
+# Requires a cron with CRON_TZ support (cronie/Vixie — default on Debian/Ubuntu).
+# Each line runs `docker compose run --rm cron <command>`, which starts the
+# run-only `cron` service, executes scripts/run-cron.ts, and removes the
+# container. The services compute their Prague windows from `now` internally, so
+# the firing minute only needs to be approximately right.
+CRON_TZ=Europe/Prague
+
+# cron #1 — morning reminders for matches TODAY (10:00 Prague)
+0 10 * * *   cd /opt/pitchup && docker compose run --rm cron morning-today    >> /var/log/pitchup-cron.log 2>&1
+# cron #2 — morning reminders for matches TOMORROW 00:00–12:00 Prague (20:00 Prague)
+0 20 * * *   cd /opt/pitchup && docker compose run --rm cron morning-tomorrow >> /var/log/pitchup-cron.log 2>&1
+# cron #3 — auto-reject pending requests past start_time (every 5 minutes)
+*/5 * * * *  cd /opt/pitchup && docker compose run --rm cron auto-reject      >> /var/log/pitchup-cron.log 2>&1
+# cron #4 — inbox TTL sweep: 30d notifications / 7d reminder_sent / 1d watch (03:00 Prague)
+0 3 * * *    cd /opt/pitchup && docker compose run --rm cron inbox-ttl        >> /var/log/pitchup-cron.log 2>&1
+
+# Nightly Postgres backup (04:30 Prague): gzipped, date-stamped dump under
+# ./backups, pruning dumps older than 14 days.
+30 4 * * *   cd /opt/pitchup && ./deploy/backup.sh                            >> /var/log/pitchup-backup.log 2>&1

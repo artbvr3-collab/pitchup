@@ -16,6 +16,9 @@
 #            --build-arg from CI, never as runtime env.
 #   runner — slim runtime: standalone server + static + public + generated
 #            Prisma client/engine + a pinned global Prisma CLI + schema.
+#   cron   — tsx-capable image (source + deps) for the 4 scheduled jobs; runs
+#            the same scripts/run-cron.ts as the dev CLI. Host cron triggers it
+#            via `docker compose run --rm cron <command>`.
 #
 # Build (CI / local):
 #   docker build \
@@ -107,3 +110,17 @@ USER node
 EXPOSE 3000
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "server.js"]
+
+# ---- cron -------------------------------------------------------------------
+# Separate image for the 4 scheduled jobs. The slim runner can't execute
+# TypeScript; this stage carries the full source + deps (incl. tsx) and runs the
+# same scripts/run-cron.ts the dev CLI uses. Invoked on demand by the host
+# crontab (`docker compose run --rm cron <command>`) — see deploy/crontab.example.
+FROM base AS cron
+ENV NODE_ENV=production
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/.npmrc ./.npmrc
+COPY . .
+RUN pnpm exec prisma generate
+# Args (e.g. `morning-today`) are appended by `docker compose run cron <args>`.
+ENTRYPOINT ["pnpm", "exec", "tsx", "scripts/run-cron.ts"]

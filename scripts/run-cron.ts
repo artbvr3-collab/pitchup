@@ -8,8 +8,9 @@
  *            - Dry runs at DST boundaries via `--now=ISO` (the services
  *              accept `now` as a method param — no wall-clock reads).
  *            - Manual replay after a host-cron miss.
- *          NOT used as the production scheduler — that's Layer 10. This
- *          script is purely a developer tool.
+ *          ALSO the production cron entry (Layer 10): the `cron` Docker image
+ *          runs this exact script via tsx, triggered by the host crontab
+ *          (`docker compose run --rm cron <command>`) — same code path as dev.
  *
  * USAGE:
  *   pnpm tsx scripts/run-cron.ts <command> [--now=ISO]
@@ -34,7 +35,13 @@
  */
 // Load DATABASE_URL etc. from .env.local using Node 22+ built-in. Must run
 // BEFORE any module that touches Prisma (which reads env at import time).
-process.loadEnvFile(".env.local");
+// In the production cron container there is no .env.local — the environment is
+// injected by compose, so a missing file is fine (ignore the throw).
+try {
+  process.loadEnvFile(".env.local");
+} catch {
+  // .env.local absent (production container) — env vars are already set.
+}
 
 import { autoRejectPendingService } from "@/src/match_lifecycle/composition";
 import {

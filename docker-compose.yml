@@ -5,7 +5,10 @@
 #            then serves :3000 (localhost-bound — Caddy fronts it).
 #   - caddy: public entrypoint on :80/:443 (TLS via Cloudflare Origin cert),
 #            reverse-proxies app:3000. Runs ONLY under the `prod` profile.
-# 10c will add a `cron` service for the 4 scheduled jobs + pg_dump backups.
+#   - cron:  run-only image for the 4 scheduled jobs (Layer 7b). Under the
+#            `cron` profile (not started by `up`); the host crontab invokes it
+#            via `docker compose run --rm cron <command>`. pg_dump backups are a
+#            host crontab line too — see deploy/crontab.example + deploy/backup.sh.
 #
 # Local build-and-run:  cp .env.production.example .env && docker compose up --build
 #   (no COMPOSE_PROFILES → caddy skipped; app on localhost:3000)
@@ -87,6 +90,30 @@ services:
       - ./caddy/certs:/etc/caddy/certs:ro
       - caddy_data:/data
       - caddy_config:/config
+
+  # Scheduled jobs (Layer 7b crons). NOT long-running — invoked on demand by the
+  # host crontab via `docker compose run --rm cron <command>`. Under the `cron`
+  # profile so `docker compose up` never starts it; `run` targets it explicitly.
+  cron:
+    image: ${CRON_IMAGE:-pitchup-cron:local}
+    build:
+      context: .
+      target: cron
+    profiles: ["cron"]
+    restart: "no"
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pitchup}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-pitchup}?schema=public
+      # env.ts validates AUTH_* at import even though the crons never use them.
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
+      AUTH_GOOGLE_ID: ${AUTH_GOOGLE_ID:?set AUTH_GOOGLE_ID in .env}
+      AUTH_GOOGLE_SECRET: ${AUTH_GOOGLE_SECRET:?set AUTH_GOOGLE_SECRET in .env}
+      # Morning-reminder email: deep-link base + transport selection.
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://pitchup.online}
+      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-console}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM: ${RESEND_FROM:-}
 
 volumes:
   pgdata:
