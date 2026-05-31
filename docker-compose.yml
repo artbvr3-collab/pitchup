@@ -41,6 +41,9 @@ services:
     # Production deploys use the prebuilt image (`docker compose pull`).
     build:
       context: .
+      # Explicit — the Dockerfile's LAST stage is `cron`, so without this the
+      # app would build the wrong (cron) image.
+      target: runner
       args:
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
         NEXT_PUBLIC_ABLY_SUBSCRIBE_KEY: ${NEXT_PUBLIC_ABLY_SUBSCRIBE_KEY:-}
