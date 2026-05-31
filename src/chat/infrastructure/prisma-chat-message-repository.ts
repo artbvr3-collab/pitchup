@@ -24,12 +24,16 @@ import type { ChatMessage as ChatMessageRow, PrismaClient } from "@prisma/client
 import { asUserId } from "@/src/auth/domain/user";
 import { asMatchId } from "@/src/match_lifecycle/domain/match";
 
+import type { UserId } from "@/src/auth/domain/user";
+import type { MatchId } from "@/src/match_lifecycle/domain/match";
+
 import {
   asChatMessageId,
   type ChatMessage,
   type ChatMessageId,
 } from "../domain/chat-message";
 import type {
+  ChatActivity,
   ChatMessageRepository,
   InsertChatMessageInput,
   ListChatMessagesForFeedOptions,
@@ -89,6 +93,46 @@ export class PrismaChatMessageRepository implements ChatMessageRepository {
       take: options.limit,
     });
     return rows.map(toDomain);
+  }
+
+  async activityByMatches(
+    userId: UserId,
+    matchIds: readonly MatchId[],
+  ): Promise<Map<MatchId, ChatActivity>> {
+    if (matchIds.length === 0) return new Map();
+    const ids = matchIds as readonly string[] as string[];
+
+    // Two grouped MAX(created_at) probes, run in parallel: one over every
+    // non-deleted message (drives the sort), one excluding the viewer's own
+    // (drives the unread dot). Cheaper + simpler than a raw FILTER aggregate
+    // and stays within the Prisma client typing.
+    const [allAgg, foreignAgg] = await Promise.all([
+      this.prisma.chatMessage.groupBy({
+        by: ["matchId"],
+        where: { matchId: { in: ids }, deletedAt: null },
+        _max: { createdAt: true },
+      }),
+      this.prisma.chatMessage.groupBy({
+        by: ["matchId"],
+        where: { matchId: { in: ids }, deletedAt: null, authorId: { not: userId } },
+        _max: { createdAt: true },
+      }),
+    ]);
+
+    const foreignByMatch = new Map<string, Date>();
+    for (const row of foreignAgg) {
+      if (row._max.createdAt) foreignByMatch.set(row.matchId, row._max.createdAt);
+    }
+
+    const out = new Map<MatchId, ChatActivity>();
+    for (const row of allAgg) {
+      if (!row._max.createdAt) continue;
+      out.set(asMatchId(row.matchId), {
+        lastAt: row._max.createdAt,
+        lastForeignAt: foreignByMatch.get(row.matchId) ?? null,
+      });
+    }
+    return out;
   }
 }
 

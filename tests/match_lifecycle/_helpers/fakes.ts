@@ -29,10 +29,12 @@ import {
   type ChatMessageId,
 } from "@/src/chat/domain/chat-message";
 import type {
+  ChatActivity,
   ChatMessageRepository,
   InsertChatMessageInput,
   ListChatMessagesForFeedOptions,
 } from "@/src/chat/domain/chat-message-repository";
+import type { ChatReadRepository } from "@/src/chat/domain/chat-read-repository";
 import type {
   ChatMessageCreatedEvent,
   ChatMessageDeletedEvent,
@@ -846,6 +848,73 @@ export class FakeChatMessageRepository implements ChatMessageRepository {
     // Sort by createdAt ASC, then cap at limit
     results.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
     return results.slice(0, options.limit);
+  }
+
+  async activityByMatches(
+    userId: UserId,
+    matchIds: readonly MatchId[],
+  ): Promise<Map<MatchId, ChatActivity>> {
+    const requested = new Set<string>(matchIds);
+    const out = new Map<MatchId, ChatActivity>();
+    for (const row of this.rows.values()) {
+      if (row.deletedAt !== null) continue;
+      if (!requested.has(row.matchId)) continue;
+      const existing = out.get(row.matchId);
+      const lastAt =
+        existing && existing.lastAt > row.createdAt
+          ? existing.lastAt
+          : row.createdAt;
+      let lastForeignAt = existing?.lastForeignAt ?? null;
+      if (
+        row.authorId !== userId &&
+        (lastForeignAt === null || row.createdAt > lastForeignAt)
+      ) {
+        lastForeignAt = row.createdAt;
+      }
+      out.set(row.matchId, { lastAt, lastForeignAt });
+    }
+    return out;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ChatReadRepository (/chats)
+// ---------------------------------------------------------------------------
+
+export class FakeChatReadRepository implements ChatReadRepository {
+  /** Keyed by `${matchId}::${userId}`. */
+  private rows = new Map<string, Date>();
+  /** Every markRead call in order, for assertions. */
+  public markReadCalls: Array<{
+    matchId: MatchId;
+    userId: UserId;
+    lastReadAt: Date;
+  }> = [];
+
+  /** Test helper — seed a read cursor. */
+  seed(matchId: MatchId, userId: UserId, lastReadAt: Date): void {
+    this.rows.set(`${matchId}::${userId}`, lastReadAt);
+  }
+
+  async markRead(
+    matchId: MatchId,
+    userId: UserId,
+    lastReadAt: Date,
+  ): Promise<void> {
+    this.markReadCalls.push({ matchId, userId, lastReadAt });
+    this.rows.set(`${matchId}::${userId}`, lastReadAt);
+  }
+
+  async listLastReadForUser(
+    userId: UserId,
+    matchIds: readonly MatchId[],
+  ): Promise<Map<MatchId, Date>> {
+    const out = new Map<MatchId, Date>();
+    for (const matchId of matchIds) {
+      const at = this.rows.get(`${matchId}::${userId}`);
+      if (at) out.set(matchId, at);
+    }
+    return out;
   }
 }
 

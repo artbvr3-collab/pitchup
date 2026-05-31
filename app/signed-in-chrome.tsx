@@ -4,8 +4,8 @@
  *          red dot, the Updates panel, and the GLOBAL poll
  *          (`GET /api/updates/state`). Mounted once in the root layout when a
  *          session exists; activates only on the main app routes
- *          (/my-matches, /me, /games). The match page has its own chrome and
- *          per-match poll, so the bar is suppressed there.
+ *          (/my-matches, /me, /games, /map, /chats). The match page has its
+ *          own chrome and per-match poll, so the bar is suppressed there.
  * LAYER: interfaces (client)
  * DEPENDENCIES: next/navigation, next/link, src/ui/hooks/use-polling,
  *               ./updates-panel, src/notifications/application/updates-state-service
@@ -19,8 +19,9 @@
  *     settle (same shape as MatchShell's message cursor). This both prevents a
  *     tight restart-loop AND prevents a consumed delta from re-firing forever.
  *   - `matches_changed` non-empty → `router.refresh()` (re-renders the current
- *     RSC route — /my-matches today; /chats when it ships). The per-match page
- *     refreshes via its own poll, not this one.
+ *     RSC route — /my-matches + /chats: a card appears on approve, disappears
+ *     on kick/leave). The per-match page refreshes via its own poll, not this
+ *     one.
  *   - Red dot = `has_unread_notifications` boolean. Opening the panel fires
  *     `POST /api/updates/read` and optimistically clears the dot; other tabs
  *     clear on their next poll (spec multi-tab consistency).
@@ -49,7 +50,7 @@ import { PollingHttpError, usePolling } from "@/src/ui/hooks/use-polling";
 import { UpdatesPanel } from "./updates-panel";
 
 /** Routes where the signed-in TopBar shows and the global poll runs. */
-const ACTIVE_PREFIXES = ["/my-matches", "/me", "/games", "/map"];
+const ACTIVE_PREFIXES = ["/my-matches", "/me", "/games", "/map", "/chats"];
 
 export function SignedInChrome() {
   const pathname = usePathname();

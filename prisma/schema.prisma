@@ -3,9 +3,9 @@
 //                              docs/spec/pitchup-spec-global.md → "Authentication", "Slot math", "Field surface", "Cover venue"
 //                              docs/spec/pitchup-spec-match.md → "Match states"
 // Layers: 1 (User), 2 (Match + Venue read-only), 4 (JoinRequest + Watch),
-//         5 (ChatMessage), 7 (Notification), 7b (ReminderSent).
-// Subsequent layers grow this file (ChatRead, Report, AdminAction,
-// Like — see app-map ERD).
+//         5 (ChatMessage), 7 (Notification), 7b (ReminderSent), 9 (AdminAction,
+//         AdminMatchDeletion, Report), /chats (ChatRead).
+// Subsequent layers grow this file (Like — see app-map ERD).
 
 generator client {
   provider = "prisma-client-js"
@@ -36,6 +36,7 @@ model User {
   joinRequests   JoinRequest[]
   watches        Watch[]
   chatMessages   ChatMessage[]  @relation("ChatMessageAuthor")
+  chatReads      ChatRead[]
   notifications  Notification[]
   remindersSent  ReminderSent[]
 
@@ -117,6 +118,7 @@ model Match {
   joinRequests  JoinRequest[]
   watches       Watch[]
   chatMessages  ChatMessage[]
+  chatReads     ChatRead[]
   notifications Notification[]
   remindersSent ReminderSent[]
   reports       Report[]
@@ -203,6 +205,38 @@ model ChatMessage {
 
   @@index([matchId, createdAt])
   @@map("chat_messages")
+}
+
+/// Per-(user, match) chat read cursor — the source of truth for the unread
+/// dot on `/chats`. Composite PK `(matchId, userId)`, no separate id; one row
+/// per pair, created lazily on the first Tab Chat open (UPSERT
+/// `last_read_at = now()`). Source of truth: docs/spec/pitchup-spec-personal.md
+/// → "/chats" → "Unread chat dots — data model" + app-map ERD → ChatRead.
+///
+/// Unread is computed on-read (no stored flag): a match has unread messages
+/// for the user iff a non-deleted ChatMessage exists with
+/// `created_at > last_read_at AND author_id != user_id` (own messages never
+/// count; absent row ⇒ every foreign message is unread).
+///
+/// `last_read_at` has NO `@default` — it is always written explicitly by the
+/// service (mark-as-read UPSERT), never defaulted at INSERT.
+///
+/// onDelete Cascade on BOTH relations — this is a disposable read cursor with
+/// no history value (unlike JoinRequest, which Restricts on the user to keep
+/// "you left" history). If a match is hard-deleted (admin, Layer 9c) or a user
+/// is ever hard-removed, the cursor should vanish, not block. Same rationale as
+/// Notification / ReminderSent.
+model ChatRead {
+  matchId    String   @map("match_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  lastReadAt DateTime @map("last_read_at") @db.Timestamptz(6)
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([matchId, userId])
+  @@index([userId])
+  @@map("chat_reads")
 }
 
 /// In-app inbox item (Updates panel). One row per notification event; for a

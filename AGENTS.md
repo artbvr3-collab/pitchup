@@ -64,6 +64,7 @@ Full layout: [docs/ARCHITECTURE.md §2](./docs/ARCHITECTURE.md).
 - **Captain cannot Join or Watch their own match.** Both endpoints explicitly check `user !== match.captain_id` (400 codes). UI doesn't show the buttons, but backend backstop is mandatory.
 - **`Match.cover_id` is a snapshot at INSERT.** Changing `venue.cover_id` later does not propagate.
 - **Author resolution at render-time, not write-time.** Chat messages from banned/deleted users render as `[Removed user]` retroactively without migration.
+- **`/chats` unread is on-read, never a stored flag.** A chat is unread iff a non-deleted message from ANOTHER author is newer than the viewer's `ChatRead.last_read_at` (no cursor row ⇒ all foreign messages unread). The ONLY mark-as-read trigger is opening Tab Chat on `/matches/:id` (`POST /chat-read` → UPSERT cursor). Own messages and soft-deleted messages never count. Sort: chats with messages by latest-message DESC, message-less chats last by `start_time` ASC.
 - **Material vs non-material edits.** Editing `start_time`/`duration`/`venue`/`surface`/`studs_allowed`/`price`/`field_booked` notifies accepted players. Editing `total_spots`/`captain_crew`/`description` is silent — **EXCEPT** `total_spots ↑` may trigger `notify watching` (separate channel).
 - **Two poll endpoints, both at 15s foreground / 60s background.** Don't write a third.
 - **Spec wins over app-map.** If [docs/spec/pitchup-app-map.md](./docs/spec/pitchup-app-map.md) and a `docs/spec/*.md` file disagree, the spec file is right and the map needs a fix.

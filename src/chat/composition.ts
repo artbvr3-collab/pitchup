@@ -9,7 +9,8 @@
  * DEPENDENCIES: ./application/*, ./infrastructure/*,
  *               src/match_lifecycle/infrastructure/repositories
  * CONSUMED BY: app/api/matches/[id]/messages/route.ts,
- *              app/api/matches/[id]/messages/[msgId]/route.ts.
+ *              app/api/matches/[id]/messages/[msgId]/route.ts,
+ *              app/api/matches/[id]/chat-read/route.ts.
  * INVARIANTS:
  *   - Imported only from `app/`.
  * RELATED DOCS: docs/ARCHITECTURE.md §3.
@@ -20,9 +21,13 @@ import {
 } from "@/src/match_lifecycle/infrastructure/repositories";
 
 import { DeleteChatMessageService } from "./application/delete-chat-message-service";
+import { MarkChatReadService } from "./application/mark-chat-read-service";
 import { PostChatMessageService } from "./application/post-chat-message-service";
 import { chatRealtimePublisher } from "./infrastructure/chat-realtime-publisher";
-import { chatMessageRepository } from "./infrastructure/repositories";
+import {
+  chatMessageRepository,
+  chatReadRepository,
+} from "./infrastructure/repositories";
 
 export const postChatMessageService = new PostChatMessageService(
   matchRepository,
@@ -36,3 +41,5 @@ export const deleteChatMessageService = new DeleteChatMessageService(
   chatMessageRepository,
   chatRealtimePublisher,
 );
+
+export const markChatReadService = new MarkChatReadService(chatReadRepository);

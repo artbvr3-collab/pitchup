@@ -107,6 +107,24 @@ export function MatchShell(props: MatchShellProps) {
     });
   }, [router, searchParams]);
 
+  // Mark the chat read whenever the Chat tab is open for a member (captain or
+  // accepted). The backend UPSERTs ChatRead(last_read_at = now()) — the single
+  // mark-as-read trigger behind the /chats unread dot (spec personal.md
+  // "/chats" → "Mark-as-read"). Guests / pending / watching have no cursor, so
+  // they skip it. Best-effort: a failure just leaves the dot for the next open.
+  useEffect(() => {
+    if (activeTab !== "chat") return;
+    if (props.viewerRole !== "captain" && props.viewerRole !== "accepted") {
+      return;
+    }
+    void fetch(`/api/matches/${props.matchId}/chat-read`, {
+      method: "POST",
+      credentials: "same-origin",
+    }).catch(() => {
+      // Best-effort — the dot clears on the next successful open.
+    });
+  }, [activeTab, props.viewerRole, props.matchId]);
+
   // Status branch decides whether polling runs at all (Cancelled / Ended /
   // InProgress have no live updates; spec match.md "Polling for match
   // state" mentions captain+accepted only — pending/watching/guest pause).

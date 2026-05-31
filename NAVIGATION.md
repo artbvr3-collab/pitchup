@@ -61,6 +61,13 @@
 - **Spec:** [docs/spec/pitchup-spec-match.md](./docs/spec/pitchup-spec-match.md) → "Realtime chat transport"
 - **Status:** not yet implemented — design only. Polling already covers message delivery as fallback.
 
+### Match chats list (`/chats`) + unread dots
+- **Page:** `app/(private)/chats/page.tsx` + `chat-match-card.tsx` (card → `?tab=chat`, corner unread dot)
+- **Assembler:** `src/match_lifecycle/application/list-my-chats-service.ts` (access = captain/accepted, sort by chat activity, on-read unread)
+- **Read cursor:** `ChatRead` table → `src/chat/domain/chat-read-repository.ts`; unread + sort source `ChatMessageRepository.activityByMatches`
+- **Mark-as-read:** `src/chat/application/mark-chat-read-service.ts` → `POST /api/matches/[id]/chat-read` (fired by `MatchShell` on Tab Chat open)
+- **Spec:** [docs/spec/pitchup-spec-personal.md](./docs/spec/pitchup-spec-personal.md) → "/chats"
+
 ### UI kit (components, tokens, theme)
 - **Components:** `src/ui/components/` — `TopBar`, `BottomNav`, `MatchCard`, `Button`, `Badge`, `Skeleton`, `BottomSheet`, ...
 - **Tokens:** `src/ui/tokens.ts` + `tailwind.config.ts`

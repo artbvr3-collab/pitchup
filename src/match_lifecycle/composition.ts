@@ -16,7 +16,10 @@
  * RELATED DOCS: docs/ARCHITECTURE.md §3 (dependency direction).
  */
 import { userRepository } from "@/src/auth/infrastructure/repositories";
-import { chatMessageRepository } from "@/src/chat/infrastructure/repositories";
+import {
+  chatMessageRepository,
+  chatReadRepository,
+} from "@/src/chat/infrastructure/repositories";
 import { emailSender } from "@/src/notifications/infrastructure/email-sender";
 import { notificationRepository } from "@/src/notifications/infrastructure/repositories";
 import { appBaseUrl } from "@/src/shared/config/env";
@@ -37,6 +40,7 @@ import { LeaveMatchService } from "./application/leave-match-service";
 import { ListAdminMatchesService, type AdminMatchStatus } from "./application/list-admin-matches-service";
 import { ListDiscoverMatchesService } from "./application/list-discover-matches";
 import { ListMapMatchesService } from "./application/list-map-matches";
+import { ListMyChatsService } from "./application/list-my-chats-service";
 import { ListMyMatchesService } from "./application/list-my-matches-service";
 import { ListVenuesService } from "./application/list-venues-service";
 import { MatchStateService } from "./application/match-state-service";
@@ -126,6 +130,13 @@ export const listMyMatchesService = new ListMyMatchesService(
   matchRepository,
   joinRequestRepository,
   watchRepository,
+);
+
+export const listMyChatsService = new ListMyChatsService(
+  matchRepository,
+  joinRequestRepository,
+  chatMessageRepository,
+  chatReadRepository,
 );
 
 export const kickPlayerService = new KickPlayerService(

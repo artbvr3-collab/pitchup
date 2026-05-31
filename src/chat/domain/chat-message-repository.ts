@@ -29,6 +29,9 @@
  *     surfaces soft-deletes as delta events even when the message itself
  *     was created before `since` — without it, the frontend would never
  *     learn about a delete that happens later than the original message.
+ *   - `activityByMatches` only considers NON-deleted rows (`deleted_at IS
+ *     NULL`). Matches with no non-deleted messages are absent from the map —
+ *     the `/chats` assembler sorts them to the bottom by `start_time`.
  * RELATED DOCS:
  *   - docs/spec/pitchup-spec-match.md → "Tab Chat", §195 ("Polling for
  *     match state"), §225 (captain delete on Cancelled)
@@ -39,6 +42,20 @@ import type { UserId } from "@/src/auth/domain/user";
 import type { MatchId } from "@/src/match_lifecycle/domain/match";
 
 import type { ChatMessage, ChatMessageId } from "./chat-message";
+
+/**
+ * Per-match chat activity used by the `/chats` list (Layer /chats):
+ *   - `lastAt`: timestamp of the latest non-deleted message (any author) —
+ *     drives the chat-list sort (DESC).
+ *   - `lastForeignAt`: timestamp of the latest non-deleted message from
+ *     someone OTHER than the viewer — combined with the viewer's ChatRead
+ *     cursor to decide the unread dot. `null` when the only messages are the
+ *     viewer's own.
+ */
+export interface ChatActivity {
+  readonly lastAt: Date;
+  readonly lastForeignAt: Date | null;
+}
 
 export interface InsertChatMessageInput {
   readonly matchId: MatchId;
@@ -77,4 +94,16 @@ export interface ChatMessageRepository {
   listForFeed(
     options: ListChatMessagesForFeedOptions,
   ): Promise<readonly ChatMessage[]>;
+
+  /**
+   * Batch chat-activity probe for the `/chats` list. For each requested match
+   * id that has at least one non-deleted message, returns its `ChatActivity`
+   * ({@link ChatActivity}). Match ids with no non-deleted messages are absent
+   * from the map. `userId` is the viewer — it splits "any author" (`lastAt`)
+   * from "another author" (`lastForeignAt`) in a single round trip.
+   */
+  activityByMatches(
+    userId: UserId,
+    matchIds: readonly MatchId[],
+  ): Promise<Map<MatchId, ChatActivity>>;
 }
