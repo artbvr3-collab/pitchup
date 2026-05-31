@@ -69,7 +69,6 @@ Full layout: [docs/ARCHITECTURE.md §2](./docs/ARCHITECTURE.md).
 - **Spec wins over app-map.** If [docs/spec/pitchup-app-map.md](./docs/spec/pitchup-app-map.md) and a `docs/spec/*.md` file disagree, the spec file is right and the map needs a fix.
 - **Russian archive (`docs/spec/ru/`) is frozen.** Do not read it without explicit human instruction. See [docs/spec/CLAUDE.md](./docs/spec/CLAUDE.md).
 - **Don't set `font-size` on `html` / `body`.** Tailwind's rem-based sizing (`h-12` → 48px, `h-11` → 44px) assumes the browser default 16px root. Setting `html { font-size: 15px }` silently shrinks every rem-based class (Layer 0 ran into this: 48px buttons became 45px). Body text size is applied via Tailwind utility (`text-[15px]`) on the `<body>` element in `app/layout.tsx` instead.
-- **Component catalog is `/design`, not `/_design`.** Next.js App Router treats `_`-prefixed folders as private and excludes them from routing. The spec / older AGENTS notes may still say `/_design` — the live URL is `/design`. See [docs/ARCHITECTURE.md §11](./docs/ARCHITECTURE.md).
 - **`pnpm` may not be on PATH.** On the current dev machine corepack is absent and no global `pnpm` is installed. Run commands as `npx pnpm@9.15.4 <args>` (slower per-call but no setup), or have the human enable corepack once. Don't fall back to `npm install` — it would rewrite the lockfile.
 - **Prisma is pinned to 6.x, not 7.x.** Prisma 7 removed `url = env(...)` from `schema.prisma` and requires `prisma.config.ts` + a driver adapter. Our scaffolding (ARCHITECTURE.md §8, repo `src/shared/db/prisma.ts`) assumes classic Prisma. If you ever bump to 7 — open ADR-0004 first; do not silently upgrade.
 - **`prisma` CLI does not auto-load `.env.local`.** Next.js reads it; the Prisma CLI only reads `.env`. To run `prisma migrate deploy` / `migrate status` / `generate` against the dev DB, export `DATABASE_URL` explicitly first: `export DATABASE_URL=$(grep '^DATABASE_URL=' .env.local | cut -d= -f2-) && pnpm exec prisma migrate deploy`. The value contains `&` (Neon query string) — extract it as a `$(...)` value, don't `source` the file naively (bash chokes on the unquoted `&`).
@@ -248,7 +247,7 @@ Full layout: [docs/ARCHITECTURE.md §2](./docs/ARCHITECTURE.md).
 5. **Adapter.** Prisma repository in `infrastructure/`. Integration test against real Postgres.
 6. **Wire it.** Update `composition.ts`.
 7. **Route handler.** Thin parse-validate-call-map in `app/api/.../route.ts`.
-8. **UI.** Server Component page + client island where needed. Use existing UI kit components from `src/ui/`; new visuals → add to `src/ui/` first, exercise in `app/design/page.tsx`, then use in the screen.
+8. **UI.** Server Component page + client island where needed. Use existing UI kit components from `src/ui/`; new visuals → add to `src/ui/` first, then use in the screen.
 9. **Update AGENTS.md** if the workflow taught you a new gotcha.
 
 ---

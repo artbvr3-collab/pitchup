@@ -64,7 +64,6 @@
 ### UI kit (components, tokens, theme)
 - **Components:** `src/ui/components/` — `TopBar`, `BottomNav`, `MatchCard`, `Button`, `Badge`, `Skeleton`, `BottomSheet`, ...
 - **Tokens:** `src/ui/tokens.ts` + `tailwind.config.ts`
-- **Visual catalog:** `app/design/page.tsx`
 - **Design source:** `mockups/match.html` (canonical anchor — light palette, token list in header comment)
 
 ### Errors
@@ -100,7 +99,7 @@
 |---|---|
 | Add a new endpoint | Service in `src/<context>/application/` → route handler in `app/api/.../route.ts` |
 | Add a new screen | Page in `app/<group>/<route>/page.tsx`, use components from `src/ui/components/` |
-| Add a new UI component | First in `src/ui/components/`, then exercise in `app/design/page.tsx`, only then in a real screen |
+| Add a new UI component | Add to `src/ui/components/`, then consume it in a real screen |
 | Change DB schema | Edit `prisma/schema.prisma` → `pnpm prisma migrate dev --name <slug>` → update repositories/types |
 | Add an HTTP error code | Add error class to `src/shared/errors/` or context-local `errors.ts` → register in `src/shared/errors/http-mapping.ts` |
 | Make an architectural decision | Write ADR in `docs/adr/NNNN-short-slug.md`, then update [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) if pattern changes |

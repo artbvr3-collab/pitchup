@@ -47,8 +47,6 @@ plusonefc/
 │   │   ├── my-matches/page.tsx
 │   │   ├── chats/page.tsx
 │   │   └── me/page.tsx
-│   ├── design/page.tsx           # Live component catalog at /design (see §11 — NOT _design;
-│   │                             # Next.js App Router treats _-prefixed folders as private)
 │   ├── api/
 │   │   ├── matches/[id]/join/route.ts        # thin → calls JoinMatchService
 │   │   ├── matches/[id]/approve/route.ts
@@ -543,11 +541,9 @@ export const tokens = {
 If a future mockup or spec introduces a new token — **add it here first**, then use it. Don't inline raw hex anywhere outside `tokens.ts` and `tailwind.config.ts`.
 
 
-### Component catalog: `/design`
+### Component catalog (removed)
 
-Live page at `app/design/page.tsx` that renders every UI kit component in the v1 light theme. Used as a visual reference and as a smoke test for design tokens. Components are added here **before** they appear in a real screen. When dark mode is reintroduced (post-v1), this page gains a theme toggle. Excluded from production sitemap via route metadata `robots: { index: false, follow: false }` (and add to `robots.txt` denylist when one ships).
-
-> **Why not `/_design` as originally specified?** Next.js App Router treats folders prefixed with `_` as private and excludes them from the routing system entirely. The folder was renamed to `app/design/` during Layer 0 scaffold (2026-05-24).
+The Layer-0 live component catalog (`app/design/page.tsx`, served at `/design`) was a dev-only page rendering every UI kit primitive in the v1 light theme. It was removed once the app went live (2026-05-31) — every primitive is now exercised by a real feature screen, so the standalone catalog had no remaining consumers. New components go straight into `src/ui/components/` and are verified in the screen that uses them (or via live preview).
 
 ### shadcn/ui
 
@@ -557,7 +553,7 @@ Components from `shadcn/ui` are copied (not npm-installed) into `src/ui/componen
 
 ## 12. Testing
 
-**Stack:** Vitest. Playwright deferred to v1.1 (manual smoke testing for now via `/design` and live preview).
+**Stack:** Vitest. Playwright deferred to v1.1 (manual smoke testing for now via live preview).
 
 **Scope:**
 
@@ -567,7 +563,7 @@ Components from `shadcn/ui` are copied (not npm-installed) into `src/ui/componen
 | `application/` | 80%+ | Inject fake repositories. Cover happy path + every error branch in the per-endpoint checklist. **Race scenarios from match.md → "Race scenarios matrix" each get a test.** |
 | `infrastructure/` | smoke | Repository tests against a real Postgres via Docker (slow, run on demand and in CI). |
 | `app/` route handlers | smoke | One test per route covering happy + one error. Most logic is in services. |
-| UI components | none in v1 | Visual checks via `/_design`. |
+| UI components | none in v1 | Visual checks via live preview. |
 
 Test files mirror `src/` structure under `tests/` (CODING_STANDARDS §2.8).
 

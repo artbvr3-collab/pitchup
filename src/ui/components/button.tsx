@@ -7,7 +7,7 @@
  *          asChild (Radix Slot pattern).
  * LAYER: ui
  * DEPENDENCIES: @radix-ui/react-slot, class-variance-authority.
- * CONSUMED BY: app/_design/page.tsx; feature screens from Layer 1 onwards.
+ * CONSUMED BY: feature screens from Layer 1 onwards.
  * RELATED DOCS: docs/ARCHITECTURE.md §11; mockups/match.html .btn rules.
  */
 "use client";

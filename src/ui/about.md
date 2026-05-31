@@ -11,7 +11,7 @@
 - Never inline raw hex outside `tokens.ts` and `tailwind.config.ts`. New token → add there first.
 - Container width: `max-w-[375px]`, centered, mobile safe-area. Not 480, not responsive.
 - Server Component by default; `'use client'` only for components with Radix internals or local state.
-- Every new component lands in `app/_design/page.tsx` first, then gets consumed by a feature screen.
+- Every new component lands in `src/ui/components/`, then gets consumed by a feature screen.
 
 **External dependencies.** Radix UI (Switch, Checkbox, Slot), `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react`.
 
