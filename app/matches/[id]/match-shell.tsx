@@ -95,15 +95,17 @@ export function MatchShell(props: MatchShellProps) {
     props.autoOpenCaptainSheet,
   );
 
-  // Auto-open the Like modal on the first visit to an Ended match when the
-  // viewer (captain or accepted) hasn't liked anyone yet (spec match.md
-  // "Post-match likes" → "When the modal appears"). Computed once from the
-  // initial snapshot; after closing it won't re-open (the `like` CTA reopens
-  // it manually). The `?action=likes` deep link is explicitly v1.1 — not here.
+  // Auto-open the Like modal:
+  //   a) ?action=likes deep-link (from the /my-matches Likes reminder) — opens
+  //      unconditionally for captain/accepted on an Ended match, regardless of
+  //      whether they already liked someone (spec personal.md §362 v1.1).
+  //   b) First visit to an Ended match when the viewer hasn't liked anyone yet
+  //      (spec match.md "Post-match likes" → "When the modal appears").
   const canLike =
     props.viewerRole === "captain" || props.viewerRole === "accepted";
   const [likeModalOpen, setLikeModalOpen] = useState(() => {
-    if (props.initialState.status !== "Ended" || !canLike) return false;
+    if (!canLike || props.initialState.status !== "Ended") return false;
+    if (searchParams.get("action") === "likes") return true;
     const l = props.initialState.lineup;
     const likedSomeone =
       l.captain_liked_by_viewer ||
@@ -111,14 +113,20 @@ export function MatchShell(props: MatchShellProps) {
     return !likedSomeone;
   });
 
-  // Strip ?tab= and ?sheet= from the URL once we've read them — same
-  // convention as the Discover bottom-sheet (router.replace, no history
-  // pollution).
+  // Strip ?tab=, ?sheet=, and ?action= from the URL once we've consumed them —
+  // same convention as the Discover bottom-sheet (router.replace, no history
+  // pollution so F5/back don't retrigger the modal).
   useEffect(() => {
-    if (!searchParams.get("tab") && !searchParams.get("sheet")) return;
+    if (
+      !searchParams.get("tab") &&
+      !searchParams.get("sheet") &&
+      !searchParams.get("action")
+    )
+      return;
     const params = new URLSearchParams(searchParams.toString());
     params.delete("tab");
     params.delete("sheet");
+    params.delete("action");
     const qs = params.toString();
     router.replace(qs.length > 0 ? `?${qs}` : window.location.pathname, {
       scroll: false,

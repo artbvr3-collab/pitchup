@@ -72,6 +72,8 @@ export interface MatchCardProps {
     readonly capacity: number;
     readonly free: number;
   };
+  /** Optional last-message preview shown at the bottom of the card body. */
+  readonly chatPreview?: string;
 }
 
 const dateFormatter = new Intl.DateTimeFormat("en-GB", {
@@ -173,6 +175,12 @@ export function MatchCard(props: MatchCardProps) {
             {formatPrice(props.price)}
           </div>
         </div>
+
+        {props.chatPreview && (
+          <div className="line-clamp-1 text-[12px] text-text-secondary">
+            {props.chatPreview}
+          </div>
+        )}
       </div>
     </Link>
   );

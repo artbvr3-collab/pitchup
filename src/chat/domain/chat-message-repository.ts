@@ -51,10 +51,16 @@ import type { ChatMessage, ChatMessageId } from "./chat-message";
  *     someone OTHER than the viewer — combined with the viewer's ChatRead
  *     cursor to decide the unread dot. `null` when the only messages are the
  *     viewer's own.
+ *   - `lastText`: text of the latest non-deleted message — shown as the
+ *     last-message preview on the `/chats` card (v1.1).
+ *   - `lastAuthorId`: author of that latest message — the assembler uses it
+ *     to prepend "You: " when the viewer is the author.
  */
 export interface ChatActivity {
   readonly lastAt: Date;
   readonly lastForeignAt: Date | null;
+  readonly lastText: string;
+  readonly lastAuthorId: UserId;
 }
 
 export interface InsertChatMessageInput {

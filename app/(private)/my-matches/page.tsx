@@ -136,7 +136,7 @@ function LikesReminder({ matchIds }: { matchIds: readonly string[] }) {
   if (matchIds.length === 1) {
     return (
       <Link
-        href={`/matches/${matchIds[0]}`}
+        href={`/matches/${matchIds[0]}?action=likes`}
         className="mb-6 flex items-center justify-between gap-3 rounded-card border border-lime bg-lime/15 px-4 py-3"
       >
         <span className="text-[14px] font-medium text-text-primary">

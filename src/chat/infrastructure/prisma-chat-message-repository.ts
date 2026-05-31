@@ -19,7 +19,7 @@
  *     in the client's local state.
  * RELATED DOCS: docs/spec/pitchup-spec-match.md → "Tab Chat", §195, §225
  */
-import type { ChatMessage as ChatMessageRow, PrismaClient } from "@prisma/client";
+import { Prisma, type ChatMessage as ChatMessageRow, type PrismaClient } from "@prisma/client";
 
 import { asUserId } from "@/src/auth/domain/user";
 import { asMatchId } from "@/src/match_lifecycle/domain/match";
@@ -102,11 +102,12 @@ export class PrismaChatMessageRepository implements ChatMessageRepository {
     if (matchIds.length === 0) return new Map();
     const ids = matchIds as readonly string[] as string[];
 
-    // Two grouped MAX(created_at) probes, run in parallel: one over every
-    // non-deleted message (drives the sort), one excluding the viewer's own
-    // (drives the unread dot). Cheaper + simpler than a raw FILTER aggregate
-    // and stays within the Prisma client typing.
-    const [allAgg, foreignAgg] = await Promise.all([
+    // Three parallel probes over chat_messages (all non-deleted):
+    //   1. allAgg  — MAX(created_at) per match → list sort key (lastAt).
+    //   2. foreignAgg — MAX(created_at) from other authors → unread dot.
+    //   3. lastMsgRows — DISTINCT ON latest row per match → preview text.
+    type LastMsgRow = { match_id: string; text: string; author_id: string };
+    const [allAgg, foreignAgg, lastMsgRows] = await Promise.all([
       this.prisma.chatMessage.groupBy({
         by: ["matchId"],
         where: { matchId: { in: ids }, deletedAt: null },
@@ -117,19 +118,33 @@ export class PrismaChatMessageRepository implements ChatMessageRepository {
         where: { matchId: { in: ids }, deletedAt: null, authorId: { not: userId } },
         _max: { createdAt: true },
       }),
+      this.prisma.$queryRaw<LastMsgRow[]>(Prisma.sql`
+        SELECT DISTINCT ON (match_id) match_id, text, author_id
+        FROM chat_messages
+        WHERE match_id = ANY(${ids}) AND deleted_at IS NULL
+        ORDER BY match_id, created_at DESC
+      `),
     ]);
 
     const foreignByMatch = new Map<string, Date>();
     for (const row of foreignAgg) {
       if (row._max.createdAt) foreignByMatch.set(row.matchId, row._max.createdAt);
     }
+    const lastMsgByMatch = new Map<string, LastMsgRow>();
+    for (const row of lastMsgRows) {
+      lastMsgByMatch.set(row.match_id, row);
+    }
 
     const out = new Map<MatchId, ChatActivity>();
     for (const row of allAgg) {
       if (!row._max.createdAt) continue;
+      const last = lastMsgByMatch.get(row.matchId);
+      if (!last) continue;
       out.set(asMatchId(row.matchId), {
         lastAt: row._max.createdAt,
         lastForeignAt: foreignByMatch.get(row.matchId) ?? null,
+        lastText: last.text,
+        lastAuthorId: asUserId(last.author_id),
       });
     }
     return out;

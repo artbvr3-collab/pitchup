@@ -22,6 +22,12 @@ export interface MyChatCardDto {
    * `created_at > lastReadAt` (or no read cursor yet). Drives the corner dot.
    */
   readonly unread: boolean;
+  /**
+   * Last-message preview for the Telegram-style footer on the chat card.
+   * `null` when the chat has no messages yet.
+   * `isOwn` is `true` when the viewer sent that message (prepend "You: ").
+   */
+  readonly lastMessage: { readonly text: string; readonly isOwn: boolean } | null;
 }
 
 export interface MyChatsPage {

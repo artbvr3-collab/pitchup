@@ -34,6 +34,11 @@ export function ChatMatchCard({ card }: { card: MyChatCardDto }) {
         price={card.match.price}
         status={card.matchStatus}
         slots={card.slots}
+        {...(card.lastMessage && {
+          chatPreview: card.lastMessage.isOwn
+            ? `You: ${card.lastMessage.text}`
+            : card.lastMessage.text,
+        })}
       />
       {card.unread && (
         <span

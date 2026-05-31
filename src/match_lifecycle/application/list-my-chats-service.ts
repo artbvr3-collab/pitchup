@@ -109,8 +109,12 @@ export class ListMyChatsService {
         activity?.lastForeignAt != null &&
         (lastReadAt === null || activity.lastForeignAt > lastReadAt);
 
+      const lastMessage = activity
+        ? { text: activity.lastText, isOwn: activity.lastAuthorId === userId }
+        : null;
+
       return {
-        dto: { match, slots, matchStatus, unread },
+        dto: { match, slots, matchStatus, unread, lastMessage },
         lastActivityAt: activity?.lastAt ?? null,
       };
     });

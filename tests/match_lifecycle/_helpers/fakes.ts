@@ -929,23 +929,33 @@ export class FakeChatMessageRepository implements ChatMessageRepository {
     matchIds: readonly MatchId[],
   ): Promise<Map<MatchId, ChatActivity>> {
     const requested = new Set<string>(matchIds);
-    const out = new Map<MatchId, ChatActivity>();
+    // Track the latest non-deleted message per match (for lastText/lastAuthorId).
+    const latestMsg = new Map<MatchId, ChatMessage>();
+    const latestForeignAt = new Map<MatchId, Date>();
+
     for (const row of this.rows.values()) {
       if (row.deletedAt !== null) continue;
       if (!requested.has(row.matchId)) continue;
-      const existing = out.get(row.matchId);
-      const lastAt =
-        existing && existing.lastAt > row.createdAt
-          ? existing.lastAt
-          : row.createdAt;
-      let lastForeignAt = existing?.lastForeignAt ?? null;
-      if (
-        row.authorId !== userId &&
-        (lastForeignAt === null || row.createdAt > lastForeignAt)
-      ) {
-        lastForeignAt = row.createdAt;
+      const prev = latestMsg.get(row.matchId);
+      if (!prev || row.createdAt > prev.createdAt) {
+        latestMsg.set(row.matchId, row);
       }
-      out.set(row.matchId, { lastAt, lastForeignAt });
+      if (row.authorId !== userId) {
+        const prevAt = latestForeignAt.get(row.matchId);
+        if (!prevAt || row.createdAt > prevAt) {
+          latestForeignAt.set(row.matchId, row.createdAt);
+        }
+      }
+    }
+
+    const out = new Map<MatchId, ChatActivity>();
+    for (const [matchId, msg] of latestMsg) {
+      out.set(matchId, {
+        lastAt: msg.createdAt,
+        lastForeignAt: latestForeignAt.get(matchId) ?? null,
+        lastText: msg.text,
+        lastAuthorId: msg.authorId,
+      });
     }
     return out;
   }

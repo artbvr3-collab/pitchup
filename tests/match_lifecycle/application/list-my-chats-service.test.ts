@@ -48,6 +48,7 @@ function msg(
   authorId: typeof SEED_PLAYER_ID,
   createdAt: Date,
   deletedAt: Date | null = null,
+  text = "hi",
 ): ChatMessage {
   msgSeq += 1;
   return {
@@ -56,7 +57,7 @@ function msg(
     ),
     matchId,
     authorId,
-    text: "hi",
+    text,
     createdAt,
     deletedAt,
   };
@@ -224,6 +225,50 @@ describe("ListMyChatsService", () => {
 
     const page = await service.execute({ userId: ME }, NOW);
     expect(page.chats.map((c) => c.match.id)).toEqual([M(1), M(3), M(2)]);
+  });
+
+  // -------------------------------------------------------------------------
+  // Last-message preview
+  // -------------------------------------------------------------------------
+
+  it("lastMessage is null when the chat has no messages", async () => {
+    const { service, matchRepo } = makeService();
+    matchRepo.put(makeMatch({ id: M(1), captainId: ME, startTime: FUTURE }));
+
+    const page = await service.execute({ userId: ME }, NOW);
+    expect(page.chats[0]!.lastMessage).toBeNull();
+  });
+
+  it("lastMessage.isOwn = true and text matches when the viewer sent the last message", async () => {
+    const { service, matchRepo, chatRepo } = makeService();
+    matchRepo.put(makeMatch({ id: M(1), captainId: ME, startTime: FUTURE }));
+    chatRepo.seed(msg(M(1), OTHER_PLAYER_ID, new Date("2026-05-26T10:00:00Z")));
+    chatRepo.seed(msg(M(1), ME, new Date("2026-05-26T11:00:00Z"), null, "see you there"));
+
+    const page = await service.execute({ userId: ME }, NOW);
+    expect(page.chats[0]!.lastMessage).toEqual({ text: "see you there", isOwn: true });
+  });
+
+  it("lastMessage.isOwn = false when another player sent the last message", async () => {
+    const { service, matchRepo, joinRepo, chatRepo } = makeService();
+    matchRepo.put(makeMatch({ id: M(2), captainId: OTHER_PLAYER_ID, startTime: FUTURE }));
+    joinRepo.seed({ matchId: M(2), userId: ME, status: "accepted" });
+    chatRepo.seed(msg(M(2), ME, new Date("2026-05-26T10:00:00Z")));
+    chatRepo.seed(msg(M(2), OTHER_PLAYER_ID, new Date("2026-05-26T11:00:00Z"), null, "bring the balls"));
+
+    const page = await service.execute({ userId: ME }, NOW);
+    expect(page.chats[0]!.lastMessage).toEqual({ text: "bring the balls", isOwn: false });
+  });
+
+  it("lastMessage ignores soft-deleted messages and uses the latest non-deleted one", async () => {
+    const { service, matchRepo, chatRepo } = makeService();
+    matchRepo.put(makeMatch({ id: M(1), captainId: ME, startTime: FUTURE }));
+    chatRepo.seed(msg(M(1), ME, new Date("2026-05-26T10:00:00Z"), null, "first"));
+    // This newer message is deleted — should NOT be the preview.
+    chatRepo.seed(msg(M(1), OTHER_PLAYER_ID, new Date("2026-05-26T11:00:00Z"), new Date("2026-05-26T11:05:00Z"), "deleted"));
+
+    const page = await service.execute({ userId: ME }, NOW);
+    expect(page.chats[0]!.lastMessage).toEqual({ text: "first", isOwn: true });
   });
 
   it("does not double-count a match the user both captains and (impossibly) has a JR on", async () => {
