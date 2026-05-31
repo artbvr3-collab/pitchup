@@ -83,6 +83,15 @@
 - **Migrations:** `prisma/migrations/`
 - **Advisory lock:** `src/shared/db/with-match-lock.ts`
 
+### Deployment / infrastructure (Layer 10)
+- **Image build:** `Dockerfile` (stages: base/deps/build/runner/cron) + `.dockerignore`
+- **Stack:** `docker-compose.yml` (db + app + caddy[`prod` profile] + cron[`cron`, run-only]) + `.env.production.example`
+- **Entry / migrations:** `docker-entrypoint.sh` (`prisma migrate deploy` → `node server.js`)
+- **Reverse proxy / TLS:** `caddy/Caddyfile` (Cloudflare Origin cert in `caddy/certs/`)
+- **Cron + backups:** `scripts/run-cron.ts`, `deploy/crontab.example`, `deploy/backup.sh`
+- **CI/CD:** `.github/workflows/deploy.yml` (CI gate → GHCR build → SSH deploy)
+- **Runbook + decision:** [docs/deploy-runbook.md](./docs/deploy-runbook.md), [docs/adr/0006-deploy-topology.md](./docs/adr/0006-deploy-topology.md)
+
 ---
 
 ## Find by use case (when you have a "I need to..." task)

@@ -29,3 +29,5 @@ See [0000-template.md](./0000-template.md). Copy, increment number, fill in.
 | 0002 | [Throw typed exceptions from an `AppError` hierarchy](./0002-throw-with-app-error-hierarchy.md) | Accepted | 2026-05-24 |
 | 0003 | [Repository ports in `domain/` with Prisma adapters in `infrastructure/`](./0003-repository-port-pattern-with-prisma.md) | Accepted | 2026-05-24 |
 | 0004 | [Resend for transactional email, with channel-specific send semantics](./0004-resend-email-with-channel-specific-send-semantics.md) | Accepted | 2026-05-30 |
+| 0005 | [Ably pub/sub as the v1 realtime chat transport](./0005-ably-realtime-chat-transport.md) | Accepted | 2026-05-31 |
+| 0006 | [Single-VPS Docker Compose deploy (self-hosted Postgres, GHCR pull, Caddy + Cloudflare)](./0006-deploy-topology.md) | Accepted | 2026-05-31 |
