@@ -44,3 +44,37 @@ export class AdminTargetNotFoundError extends AppError {
     super("user_not_found", "Target user not found", 404, meta);
   }
 }
+
+/**
+ * `404 report_target_not_found` — `POST /api/reports` named a match or player
+ * that does not exist (or, for a player, is banned / soft-deleted — outside
+ * observers cannot tell, mirroring the `/users/:id` privacy sentinel). The UI
+ * never offers Report on a removed target; this is the curl / stale-tab path.
+ */
+export class ReportTargetNotFoundError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super("report_target_not_found", "Report target not found", 404, meta);
+  }
+}
+
+/**
+ * `400 cannot_report_self` — a signed-in user tried to report their own
+ * profile. The `/users/:id` page redirects self-views to `/me` (the `[⋯]`
+ * menu never renders for the owner); this is the direct-API backstop.
+ */
+export class CannotReportSelfError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super("cannot_report_self", "You cannot report yourself", 400, meta);
+  }
+}
+
+/**
+ * `404 report_not_found` — an admin `[Dismiss]` targeted a report id that
+ * does not exist (already purged, or a fabricated id). The list only links
+ * real rows, so this is a race / curl path.
+ */
+export class ReportNotFoundError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super("report_not_found", "Report not found", 404, meta);
+  }
+}
