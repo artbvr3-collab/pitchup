@@ -450,26 +450,25 @@ export class PrismaMatchRepository implements MatchRepository {
       },
     });
 
-    return rows.map((r) => ({
-      id: r.id,
-      venueName: r.venue.name,
-      captainName: r.captain.name,
-      captainId: r.captain.id,
-      startTime: r.startTime,
-      duration: r.duration,
-      totalSpots: r.totalSpots,
-      captainCrewLength: r.captainCrew.length,
-      acceptedCount: r.joinRequests.reduce(
-        (acc, jr) => acc + 1 + jr.guestCount,
-        0,
-      ),
-      cancelledAt: r.cancelledAt,
-      description: r.description,
-      descriptionHidden: r.descriptionHidden,
-      cancelReason: r.cancelReason,
-      cancelReasonHidden: r.cancelReasonHidden,
-      updatedAt: r.updatedAt,
-    }));
+    return rows.map(adminRowToDomain);
+  }
+
+  async findForAdminByIds(
+    ids: readonly string[],
+  ): Promise<readonly AdminMatchRow[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.prisma.match.findMany({
+      where: { id: { in: ids as string[] } },
+      include: {
+        venue: { select: { name: true } },
+        captain: { select: { id: true, name: true } },
+        joinRequests: {
+          where: { status: "accepted" },
+          select: { guestCount: true },
+        },
+      },
+    });
+    return rows.map(adminRowToDomain);
   }
 
   async updateFlags(
@@ -518,6 +517,47 @@ type MatchWithVenueRow = MatchRow & {
     active: boolean;
   };
 };
+
+/** Shared row → AdminMatchRow projection for `findForAdmin` + `findForAdminByIds`. */
+type AdminMatchQueryRow = {
+  id: string;
+  venue: { name: string };
+  captain: { id: string; name: string };
+  joinRequests: { guestCount: number }[];
+  startTime: Date;
+  duration: number;
+  totalSpots: number;
+  captainCrew: string[];
+  cancelledAt: Date | null;
+  description: string | null;
+  descriptionHidden: boolean;
+  cancelReason: string | null;
+  cancelReasonHidden: boolean;
+  updatedAt: Date;
+};
+
+function adminRowToDomain(r: AdminMatchQueryRow): AdminMatchRow {
+  return {
+    id: r.id,
+    venueName: r.venue.name,
+    captainName: r.captain.name,
+    captainId: r.captain.id,
+    startTime: r.startTime,
+    duration: r.duration,
+    totalSpots: r.totalSpots,
+    captainCrewLength: r.captainCrew.length,
+    acceptedCount: r.joinRequests.reduce(
+      (acc, jr) => acc + 1 + jr.guestCount,
+      0,
+    ),
+    cancelledAt: r.cancelledAt,
+    description: r.description,
+    descriptionHidden: r.descriptionHidden,
+    cancelReason: r.cancelReason,
+    cancelReasonHidden: r.cancelReasonHidden,
+    updatedAt: r.updatedAt,
+  };
+}
 
 function matchWithVenueRowToDomain(row: MatchWithVenueRow): MatchWithVenue {
   return {

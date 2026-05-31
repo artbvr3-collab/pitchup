@@ -23,9 +23,14 @@ import { matchRepository } from "@/src/match_lifecycle/infrastructure/repositori
 
 import { BanUserService } from "./application/ban-user-service";
 import { DemoteUserService } from "./application/demote-user-service";
+import { ListAdminReportsService } from "./application/list-admin-reports-service";
 import { PromoteUserService } from "./application/promote-user-service";
+import { SubmitReportService } from "./application/submit-report-service";
 import { UnbanUserService } from "./application/unban-user-service";
-import { adminActionRepository } from "./infrastructure/repositories";
+import {
+  adminActionRepository,
+  reportRepository,
+} from "./infrastructure/repositories";
 
 export const banUserService = new BanUserService(
   userRepository,
@@ -48,3 +53,24 @@ export const demoteUserService = new DemoteUserService(
   userRepository,
   adminActionRepository,
 );
+
+// ─── Layer 9d — reports ──────────────────────────────────────────────────────
+
+export const submitReportService = new SubmitReportService(
+  reportRepository,
+  userRepository,
+  matchRepository,
+);
+
+export const listAdminReportsService = new ListAdminReportsService(
+  reportRepository,
+  userRepository,
+  matchRepository,
+);
+
+/**
+ * Re-exported for the thin admin report routes (mark-reviewed / dismiss) which
+ * call the repository directly — same pattern as `/admin/users` reading
+ * `userRepository.listForAdmin` and `/admin/venues` using `venueRepository`.
+ */
+export { reportRepository };

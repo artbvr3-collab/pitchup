@@ -288,6 +288,15 @@ export interface MatchRepository {
   findForAdmin(options: FindForAdminOptions): Promise<readonly AdminMatchRow[]>;
 
   /**
+   * Layer 9d — batch admin-row lookup by id. Same `AdminMatchRow` shape as
+   * `findForAdmin` (venue name, captain, accepted count, hide flags, etc.) but
+   * keyed on a set of ids and unsorted/uncapped. Used by `ListAdminReports
+   * Service` to resolve every match-report target in one query (status +
+   * hide-flag state for the Review modal). Missing ids are simply absent.
+   */
+  findForAdminByIds(ids: readonly string[]): Promise<readonly AdminMatchRow[]>;
+
+  /**
    * Layer 9c — no-lock update for the admin hide-flag pair
    * (`description_hidden`, `cancel_reason_hidden`). Only the provided keys
    * are updated; `undefined` means "don't touch". No advisory lock — admin
