@@ -37,6 +37,13 @@ import { userRepository } from "./repositories";
 const THREE_HUNDRED_THIRTY_THREE_DAYS_IN_SECONDS = 333 * 24 * 60 * 60;
 
 export const authConfig: NextAuthConfig = {
+  // Self-hosted behind a reverse proxy (Caddy → Cloudflare). Auth.js v5 must
+  // trust the forwarded Host header; otherwise production (NODE_ENV=production)
+  // rejects every request to /api/auth/* with `UntrustedHost`. `next dev`
+  // auto-trusts localhost, so this only surfaces in the container / on the VPS.
+  // For correct absolute callback URLs in prod, also set AUTH_URL=
+  // https://pitchup.online in the VPS .env (Layer 10b/10e). See ADR-0006.
+  trustHost: true,
   providers: [Google],
   session: {
     strategy: "jwt",

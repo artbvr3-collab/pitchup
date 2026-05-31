@@ -72,6 +72,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm exec prisma generate
 RUN pnpm run build
 
+# Next's public/ dir is optional and this repo ships none. The runner copies it
+# unconditionally, so guarantee an (empty) one exists to keep the COPY valid.
+RUN mkdir -p /app/public
+
 # ---- runner -----------------------------------------------------------------
 FROM base AS runner
 ENV NODE_ENV=production

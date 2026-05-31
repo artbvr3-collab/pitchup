@@ -15,7 +15,7 @@ name: pitchup
 
 services:
   db:
-    image: postgres:16-bookworm
+    image: postgres:16
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-pitchup}
@@ -32,7 +32,7 @@ services:
     # compose network as host `db`. The app connects via DATABASE_URL below.
 
   app:
-    image: ${APP_IMAGE:-ghcr.io/OWNER/pitchup:latest}
+    image: ${APP_IMAGE:-pitchup:local}
     # `build` is used by `docker compose build` / `up --build` for LOCAL runs.
     # Production deploys use the prebuilt image (`docker compose pull`).
     build:
