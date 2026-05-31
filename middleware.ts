@@ -31,6 +31,9 @@ export const runtime = "nodejs";
 // guests too (spec personal.md "/users/:id"). It also serves a unified
 // "no longer on PITCHUP" page for banned / deleted / 404 — that's a
 // public render, not a redirect.
+// `/matches/:id` is also guest-public but lives in its own dynamic check
+// below (`isPublicMatchView`) so the sibling auth-gated routes
+// `/matches/new` and `/matches/:id/edit` aren't accidentally opened up.
 const PUBLIC_PATHS: readonly string[] = ["/", "/login", "/games", "/map"];
 const PUBLIC_PREFIXES: readonly string[] = ["/legal/", "/users/"];
 
@@ -43,8 +46,24 @@ function startsWithAny(pathname: string, prefixes: readonly string[]): boolean {
   return prefixes.some((p) => pathname.startsWith(p));
 }
 
+// `/matches/:id` is a public match-detail page — guests render it with a
+// disabled `[Sign in to join]` CTA and read-only chat (spec global.md
+// "Guest" + app-map.md "Guest can View /matches/:id"; Share is a public
+// link). But ONLY the bare detail route: the create wizard `/matches/new`
+// and the captain-only `/matches/:id/edit` stay auth-gated. So we whitelist
+// exactly one path segment after `/matches/`, excluding `new`.
+function isPublicMatchView(pathname: string): boolean {
+  if (!pathname.startsWith("/matches/")) return false;
+  const rest = pathname.slice("/matches/".length);
+  return rest.length > 0 && !rest.includes("/") && rest !== "new";
+}
+
 function isPublic(pathname: string): boolean {
-  return PUBLIC_PATHS.includes(pathname) || startsWithAny(pathname, PUBLIC_PREFIXES);
+  return (
+    PUBLIC_PATHS.includes(pathname) ||
+    startsWithAny(pathname, PUBLIC_PREFIXES) ||
+    isPublicMatchView(pathname)
+  );
 }
 
 function isOnboardingAllowed(pathname: string): boolean {
