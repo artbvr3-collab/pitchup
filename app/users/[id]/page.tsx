@@ -43,6 +43,8 @@ import type { Metadata } from "next";
 import { optionalAuth, userRepository } from "@/src/auth/composition";
 import { asUserId } from "@/src/auth/domain/user";
 
+import { UserHeaderMenu } from "./user-header-menu";
+
 export const dynamic = "force-dynamic";
 
 interface PageProps {
@@ -100,7 +102,11 @@ export default async function UserProfilePage(props: PageProps) {
 
   return (
     <main className="mx-auto w-full max-w-[375px] px-4 pb-12 pt-4">
-      <BackBar />
+      <div className="flex h-9 items-center justify-between">
+        <BackBar />
+        {/* Guests see the menu too — tap → Sign-in (spec personal.md §305). */}
+        <UserHeaderMenu userId={id} signedIn={viewer !== null} />
+      </div>
 
       <div className="mt-4 flex flex-col items-center text-center">
         {user.avatarUrl ? (

@@ -52,6 +52,7 @@ import { CaptainSheet } from "./captain-sheet";
 import { ChatTab } from "./chat-tab";
 import { LineupTab } from "./lineup-tab";
 import { MatchCtaBar } from "./match-cta-bar";
+import { MatchHeaderMenu } from "./match-header-menu";
 import { MatchHero } from "./match-hero";
 import { MatchTabs, type TabId } from "./match-tabs";
 
@@ -196,6 +197,24 @@ export function MatchShell(props: MatchShellProps) {
 
   return (
     <main className="mx-auto flex max-w-[375px] flex-col gap-4 pb-12">
+      <div className="flex h-11 items-center justify-between">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          aria-label="Back"
+          className="-ml-1 inline-flex items-center gap-1 rounded-card px-2 py-1 text-[14px] font-medium text-text-secondary hover:text-text-primary"
+        >
+          <span aria-hidden>←</span>
+          <span>Back</span>
+        </button>
+        <MatchHeaderMenu
+          matchId={props.matchId}
+          canReport={
+            props.viewerId !== null && props.viewerRole !== "captain"
+          }
+        />
+      </div>
+
       <MatchHero
         venueName={props.venue.name}
         venueAddress={props.venue.address}
