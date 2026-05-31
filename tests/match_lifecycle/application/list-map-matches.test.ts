@@ -96,6 +96,7 @@ class FakeMatchRepository implements MatchRepository {
   async findMatchIdsWithPendingStartedBefore(): Promise<readonly never[]> { return []; }
   async findActiveStartingInWindow(): Promise<readonly never[]> { return []; }
   async findForAdmin(): Promise<readonly never[]> { return []; }
+  async findForAdminByIds(): Promise<readonly never[]> { return []; }
   async updateFlags(): Promise<null> { return null; }
 }
 

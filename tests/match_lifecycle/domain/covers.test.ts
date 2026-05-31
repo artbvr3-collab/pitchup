@@ -14,7 +14,7 @@ import {
 describe("isValidCoverId", () => {
   it("accepts known palette slugs and rejects everything else", () => {
     expect(isValidCoverId("cover-001")).toBe(true);
-    expect(isValidCoverId(COVER_IDS[COVER_IDS.length - 1])).toBe(true);
+    expect(isValidCoverId(COVER_IDS[COVER_IDS.length - 1]!)).toBe(true);
     expect(isValidCoverId("cover-999")).toBe(false);
     expect(isValidCoverId("cover-default")).toBe(false);
     expect(isValidCoverId("")).toBe(false);

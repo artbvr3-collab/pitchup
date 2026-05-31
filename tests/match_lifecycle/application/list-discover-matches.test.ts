@@ -87,6 +87,7 @@ class FakeMatchRepository implements MatchRepository {
     return { rows: [] };
   }
   async findForAdmin(): Promise<readonly never[]> { return []; }
+  async findForAdminByIds(): Promise<readonly never[]> { return []; }
   async updateFlags(): Promise<null> { return null; }
 }
 

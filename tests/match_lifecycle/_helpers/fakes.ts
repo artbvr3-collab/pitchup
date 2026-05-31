@@ -295,6 +295,12 @@ export class FakeMatchRepository implements MatchRepository {
     return [];
   }
 
+  async findForAdminByIds(
+    _ids: readonly string[],
+  ): Promise<readonly AdminMatchRow[]> {
+    return [];
+  }
+
   async updateFlags(
     id: MatchId,
     flags: UpdateMatchFlags,
