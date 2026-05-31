@@ -260,6 +260,7 @@ export function MatchShell(props: MatchShellProps) {
 
       <MatchCtaBar
         matchId={props.matchId}
+        startTime={props.match.startTime}
         cta={cta}
         onManageClick={() => setCaptainSheetOpen(true)}
       />

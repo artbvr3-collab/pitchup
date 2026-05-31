@@ -42,6 +42,7 @@ import type {
 } from "@/src/match_lifecycle/application/dto/match-state";
 import { Button } from "@/src/ui/components/button";
 import { Sheet } from "@/src/ui/components/sheet";
+import { useToast } from "@/src/ui/components/toast";
 import { cn } from "@/src/ui/lib/cn";
 
 export interface CaptainSheetProps {
@@ -310,6 +311,7 @@ function PendingItem({
   matchId: string;
   onActed: () => void;
 }) {
+  const { toast } = useToast();
   const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
   const slotsNeeded = 1 + pending.guest_count;
   const approveDisabled = slotsNeeded > free;
@@ -323,10 +325,7 @@ function PendingItem({
         body: JSON.stringify({ request_id: pending.request_id }),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as
-          | { code?: string }
-          | null;
-        alert(`${action} failed: ${body?.code ?? res.status}`);
+        toast(`Couldn't ${action} request. Try again.`, "error");
         return;
       }
       onActed();

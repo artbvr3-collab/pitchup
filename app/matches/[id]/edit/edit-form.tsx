@@ -40,6 +40,7 @@ import { Button } from "@/src/ui/components/button";
 import { Checkbox } from "@/src/ui/components/checkbox";
 import { Stepper } from "@/src/ui/components/stepper";
 import { Switch } from "@/src/ui/components/switch";
+import { useToast } from "@/src/ui/components/toast";
 import { cn } from "@/src/ui/lib/cn";
 
 export interface EditMatchFormProps {
@@ -73,6 +74,7 @@ const MAX_CREW_NAME = 30;
 
 export function EditMatchForm(props: EditMatchFormProps) {
   const router = useRouter();
+  const { toast } = useToast();
 
   const [description, setDescription] = useState<string>(
     props.initial.description ?? "",
@@ -181,10 +183,11 @@ export function EditMatchForm(props: EditMatchFormProps) {
           code?: string;
           meta?: Record<string, unknown>;
         } | null;
-        // Spec §665: concurrent_modification → reload (with a toast).
+        // Spec §665: concurrent_modification → toast then reload to pull the
+        // fresh updated_at. Brief delay so the toast is seen before reload.
         if (body?.code === "concurrent_modification") {
-          window.alert("Match was updated in another tab.");
-          window.location.reload();
+          toast("Match was updated in another tab. Reloading…", "error");
+          setTimeout(() => window.location.reload(), 1200);
           return;
         }
         setError(messageForCode(body?.code, body?.meta));

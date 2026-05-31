@@ -34,6 +34,7 @@ import * as React from "react";
 import { Button } from "@/src/ui/components/button";
 import { Checkbox } from "@/src/ui/components/checkbox";
 import { Chip } from "@/src/ui/components/chip";
+import { useConfirm } from "@/src/ui/components/confirm";
 import { Input } from "@/src/ui/components/input";
 import { Stepper } from "@/src/ui/components/stepper";
 import { Switch } from "@/src/ui/components/switch";
@@ -182,6 +183,7 @@ export interface WizardProps {
 
 export function Wizard({ venues, nowIso }: WizardProps) {
   const router = useRouter();
+  const confirm = useConfirm();
   const initialNow = React.useMemo(() => new Date(nowIso), [nowIso]);
   const initialToday = React.useMemo(() => pragueDateString(initialNow), [initialNow]);
 
@@ -270,8 +272,17 @@ export function Wizard({ venues, nowIso }: WizardProps) {
     state.description.trim().length > 0;
 
   // ─── handlers ───
-  const onClose = () => {
-    if (isDirty && !confirm("Discard match? Your changes will be lost.")) return;
+  const onClose = async () => {
+    if (isDirty) {
+      const ok = await confirm({
+        title: "Discard match?",
+        body: "Your changes will be lost.",
+        confirmLabel: "Discard",
+        cancelLabel: "Keep editing",
+        tone: "destructive",
+      });
+      if (!ok) return;
+    }
     router.push("/my-matches");
   };
 

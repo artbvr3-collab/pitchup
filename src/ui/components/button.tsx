@@ -28,6 +28,8 @@ const buttonVariants = cva(
           "border-[1.5px] border-border bg-bg-card text-text-primary hover:bg-bg-surface",
         "destructive-ghost":
           "border-[1.5px] border-[#FECACA] bg-transparent text-destructive hover:bg-destructive-bg",
+        destructive:
+          "bg-destructive text-text-inverted shadow-btn hover:opacity-90",
         disabled: "bg-bg-surface text-text-muted",
       },
       size: {

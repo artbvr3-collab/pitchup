@@ -31,6 +31,8 @@ import type {
 } from "@/src/match_lifecycle/application/dto/match-state";
 import type { ViewerRole } from "@/src/match_lifecycle/domain/compute-cta";
 import { Button } from "@/src/ui/components/button";
+import { useConfirm } from "@/src/ui/components/confirm";
+import { useToast } from "@/src/ui/components/toast";
 import { cn } from "@/src/ui/lib/cn";
 
 export interface ChatTabProps {
@@ -136,6 +138,8 @@ function MessageRow({
   const [locallyDeleted, setLocallyDeleted] = useState(false);
   const deleted = message.deleted_at !== null || locallyDeleted;
   const [busy, setBusy] = useState(false);
+  const { toast } = useToast();
+  const confirm = useConfirm();
   const author = resolveAuthor(message.author);
   const time = new Date(message.created_at).toLocaleTimeString("en-GB", {
     hour: "2-digit",
@@ -144,7 +148,12 @@ function MessageRow({
   });
 
   const handleDelete = async () => {
-    if (!confirm("Delete this message?")) return;
+    const ok = await confirm({
+      title: "Delete this message?",
+      confirmLabel: "Delete",
+      tone: "destructive",
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       const res = await fetch(
@@ -152,10 +161,7 @@ function MessageRow({
         { method: "DELETE" },
       );
       if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as
-          | { code?: string }
-          | null;
-        alert(`Delete failed: ${body?.code ?? res.status}`);
+        toast("Couldn't delete message. Try again.", "error");
         return;
       }
       setLocallyDeleted(true);
@@ -212,6 +218,7 @@ function Composer({
 }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const { toast } = useToast();
 
   const submit = async () => {
     const trimmed = text.trim();
@@ -224,10 +231,7 @@ function Composer({
         body: JSON.stringify({ text: trimmed }),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as
-          | { code?: string }
-          | null;
-        alert(`Send failed: ${body?.code ?? res.status}`);
+        toast("Couldn't send message. Try again.", "error");
         return;
       }
       const persisted = (await res.json()) as {

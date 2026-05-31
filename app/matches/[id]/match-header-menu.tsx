@@ -17,6 +17,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { ReportSubmissionModal } from "@/src/ui/components/report-submission-modal";
+import { useToast } from "@/src/ui/components/toast";
 
 export interface MatchHeaderMenuProps {
   readonly matchId: string;
@@ -26,6 +27,7 @@ export interface MatchHeaderMenuProps {
 export function MatchHeaderMenu({ matchId, canReport }: MatchHeaderMenuProps) {
   const [open, setOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const { toast } = useToast();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,9 +57,9 @@ export function MatchHeaderMenu({ matchId, canReport }: MatchHeaderMenuProps) {
     }
     try {
       await navigator.clipboard.writeText(url);
-      window.alert("Link copied");
+      toast("Link copied", "success");
     } catch {
-      window.alert(url);
+      toast("Couldn't copy link", "error");
     }
   }
 

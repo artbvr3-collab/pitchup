@@ -13,6 +13,7 @@ import "./globals.css";
 import { optionalAuth } from "@/src/auth/composition";
 import { BottomNav } from "@/src/ui/components/bottom-nav";
 
+import { AppProviders } from "./app-providers";
 import { SignedInChrome } from "./signed-in-chrome";
 
 const inter = Inter({
@@ -46,11 +47,13 @@ export default async function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body className="bg-bg-surface font-sans text-[15px] text-text-primary">
-        <div className="mx-auto flex min-h-dvh max-w-screen flex-col bg-bg-base">
-          {session && <SignedInChrome />}
-          <div className="flex-1">{children}</div>
-          <BottomNav isSignedIn={!!session} />
-        </div>
+        <AppProviders>
+          <div className="mx-auto flex min-h-dvh max-w-screen flex-col bg-bg-base">
+            {session && <SignedInChrome />}
+            <div className="flex-1">{children}</div>
+            <BottomNav isSignedIn={!!session} />
+          </div>
+        </AppProviders>
       </body>
     </html>
   );

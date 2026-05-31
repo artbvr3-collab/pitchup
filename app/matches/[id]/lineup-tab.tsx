@@ -4,7 +4,7 @@
  *          pending list. Captain sees inline `[✓]` `[✗]` buttons on
  *          pending entries (Layer 4 /approve, /reject) and a `[Kick]`
  *          button next to each accepted non-self player (Layer 6.5
- *          /kick), guarded by a window.confirm modal.
+ *          /kick), guarded by the shared confirm dialog (useConfirm).
  *          Layer 6+: shuffle teams (deferred).
  * LAYER: interfaces (client)
  * INVARIANTS:
@@ -13,10 +13,10 @@
  *   - Approve `[✓]` disabled when `1 + guest_count > free` per spec §179.
  *   - Kick is captain-only and only renders on accepted real players —
  *     never on the captain row, never on crew stubs (stubs are not users).
- *     Confirm via `window.confirm("Remove [name] from match?")` — same
- *     pattern as chat delete. 404 from the backend is treated as
- *     success-no-op (spec "Idempotency": player may have left between
- *     captain's click and the kick).
+ *     Confirm via the shared `useConfirm` dialog ("Remove [name] from
+ *     match?") — same pattern as chat delete. 404 from the backend is
+ *     treated as success-no-op (spec "Idempotency": player may have left
+ *     between captain's click and the kick).
  *   - The kick endpoint takes a `request_id`, NOT a userId — passing the
  *     accepted JR's `request_id` mirrors Approve / Reject; race-safe
  *     against re-applies (kicking by userId would target a stale row).
@@ -36,6 +36,8 @@ import type {
 } from "@/src/match_lifecycle/application/dto/match-state";
 import type { ViewerRole } from "@/src/match_lifecycle/domain/compute-cta";
 import { Card } from "@/src/ui/components/card";
+import { useConfirm } from "@/src/ui/components/confirm";
+import { useToast } from "@/src/ui/components/toast";
 import { cn } from "@/src/ui/lib/cn";
 
 export interface LineupTabProps {
@@ -168,15 +170,20 @@ function KickButton({
   displayName: string;
 }) {
   const router = useRouter();
+  const { toast } = useToast();
+  const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
 
   const onClick = async () => {
     if (busy) return;
-    // Native confirm; spec match.md "Kick accepted goes through a confirm
-    // modal in captain sheet / Lineup". A bespoke modal can land later if
-    // mis-tap rate is bad — `confirm()` is the MVP per match-page Delete
-    // pattern (spec §369).
-    if (!window.confirm(`Remove ${displayName} from match?`)) return;
+    // Spec match.md "Kick accepted goes through a confirm modal in captain
+    // sheet / Lineup" — shared confirm dialog (mis-tap protection).
+    const ok = await confirm({
+      title: `Remove ${displayName} from match?`,
+      confirmLabel: "Kick",
+      tone: "destructive",
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       const res = await fetch(`/api/matches/${matchId}/kick`, {
@@ -185,17 +192,14 @@ function KickButton({
         body: JSON.stringify({ request_id: requestId }),
       });
       if (!res.ok && res.status !== 404) {
-        const body = (await res.json().catch(() => null)) as {
-          code?: string;
-        } | null;
-        alert(`Couldn't remove: ${body?.code ?? res.status}`);
+        toast("Couldn't remove player. Try again.", "error");
         return;
       }
       // 404 (player already left between captain's click and kick) is
       // success-no-op per spec "Idempotency". Either way, refresh.
       router.refresh();
     } catch {
-      alert("Couldn't reach the server. Try again.");
+      toast("Couldn't reach the server. Try again.", "error");
     } finally {
       setBusy(false);
     }
@@ -237,6 +241,7 @@ function PendingRow({
   matchId: string;
 }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
   const slotsNeeded = 1 + pending.guest_count;
   const approveDisabled = slotsNeeded > free;
@@ -250,10 +255,7 @@ function PendingRow({
         body: JSON.stringify({ request_id: pending.request_id }),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as
-          | { code?: string }
-          | null;
-        alert(`${action} failed: ${body?.code ?? res.status}`);
+        toast(`Couldn't ${action} request. Try again.`, "error");
         return;
       }
       router.refresh();

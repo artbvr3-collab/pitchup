@@ -22,6 +22,7 @@ import { useState } from "react";
 
 import { Button } from "@/src/ui/components/button";
 import { Sheet } from "@/src/ui/components/sheet";
+import { useToast } from "@/src/ui/components/toast";
 
 export interface ReportSubmissionModalProps {
   readonly open: boolean;
@@ -44,6 +45,7 @@ export function ReportSubmissionModal({
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   function close() {
     if (busy) return;
@@ -79,7 +81,7 @@ export function ReportSubmissionModal({
         return;
       }
       // Success or silent dedup — identical UX.
-      window.alert("Report submitted. Thank you.");
+      toast("Report submitted. Thank you.", "success");
       setComment("");
       onClose();
     } catch {

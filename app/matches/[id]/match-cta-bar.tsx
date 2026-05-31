@@ -7,7 +7,9 @@
  *          The remaining coming-soon action (`like`, Layer 6.X) still
  *          renders disabled with a "Coming soon" title.
  * LAYER: interfaces (client)
- * DEPENDENCIES: src/ui/components/button, react, next/navigation
+ * DEPENDENCIES: src/ui/components/button, src/ui/components/toast (useToast),
+ *               src/ui/components/confirm (useConfirm),
+ *               src/ui/components/leave-match-modal, react, next/navigation
  * INVARIANTS:
  *   - Each live action funnels through a small helper that wraps fetch +
  *     error mapping + `router.refresh()` on success so the page re-fetches
@@ -16,9 +18,10 @@
  *   - `notifyMe` 409 `not_full` is mapped to the spec toast text
  *     ("A spot just opened — refresh to join"). On success the user sees
  *     "We'll ping you next time a spot opens." which matches the spec wording.
- *   - `leave` and `cancelRequest` confirm before fire (mis-tap protection).
- *     Layer 6 ships a `confirm()` dialog; spec calls for richer modals
- *     (reason radio for Leave) — deferred to a UI polish pass.
+ *   - `leave` opens the spec Leave modal (reason radio + < 24h warning);
+ *     `cancelRequest` confirms via the shared confirm dialog (mis-tap
+ *     protection). The Leave reason is sent in the POST body but backend
+ *     persistence is a v1.1 follow-up (no `leave_reason` column yet).
  *   - 404 on `leave` / `cancelRequest` (race with cron / kick / approve) is
  *     treated as success-no-op per spec "Idempotency" — we just refresh.
  * RELATED DOCS:
@@ -33,24 +36,32 @@ import { useState } from "react";
 
 import type { CtaAction, CtaSpec } from "@/src/match_lifecycle/domain/compute-cta";
 import { Button } from "@/src/ui/components/button";
+import { useConfirm } from "@/src/ui/components/confirm";
+import { LeaveMatchModal } from "@/src/ui/components/leave-match-modal";
+import { useToast, type ToastTone } from "@/src/ui/components/toast";
 
 export interface MatchCtaBarProps {
   readonly matchId: string;
+  readonly startTime: string; // ISO — drives the Leave "< 24h" warning
   readonly cta: CtaSpec;
   readonly onManageClick: () => void;
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function MatchCtaBar(props: MatchCtaBarProps) {
   return (
     <div className="flex flex-col gap-2">
       <CtaButton
         matchId={props.matchId}
+        startTime={props.startTime}
         action={props.cta.primary}
         onManageClick={props.onManageClick}
       />
       {props.cta.secondary && (
         <CtaButton
           matchId={props.matchId}
+          startTime={props.startTime}
           action={props.cta.secondary}
           onManageClick={props.onManageClick}
         />
@@ -64,11 +75,15 @@ export function MatchCtaBar(props: MatchCtaBarProps) {
 
 function CtaButton(props: {
   matchId: string;
+  startTime: string;
   action: CtaAction;
   onManageClick: () => void;
 }) {
   const router = useRouter();
+  const { toast } = useToast();
+  const confirm = useConfirm();
   const [busy, setBusy] = useState(false);
+  const [leaveOpen, setLeaveOpen] = useState(false);
 
   const { action, matchId } = props;
 
@@ -124,7 +139,7 @@ function CtaButton(props: {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ guest_count: 0 }),
             });
-            await handleResponse(res, router, {
+            await handleResponse(res, router, toast, {
               successToast: null,
               codeMessages: {
                 already_requested: "You already applied",
@@ -143,40 +158,46 @@ function CtaButton(props: {
   }
 
   if (action.type === "leave") {
+    const within24h =
+      new Date(props.startTime).getTime() - Date.now() < DAY_MS;
     return (
-      <Button
-        variant="destructive-ghost"
-        disabled={busy}
-        onClick={async () => {
-          // Spec calls for a Leave modal with reason radio (Can't make it /
-          // Injury / Personal / Other). Layer 6 ships a native confirm —
-          // reason capture lands in a later UI polish pass.
-          if (
-            !window.confirm(
-              "Leave this match? Your spot will be freed for someone else.",
-            )
-          ) {
-            return;
-          }
-          setBusy(true);
-          try {
-            const res = await fetch(`/api/matches/${matchId}/leave`, {
-              method: "POST",
-            });
-            await handleResponse(res, router, {
-              successToast: null,
-              treat404AsOk: true,
-              codeMessages: {
-                match_locked: "Match has already started",
-              },
-            });
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        {busy ? "Leaving…" : action.label}
-      </Button>
+      <>
+        <Button
+          variant="destructive-ghost"
+          disabled={busy}
+          onClick={() => setLeaveOpen(true)}
+        >
+          {busy ? "Leaving…" : action.label}
+        </Button>
+        <LeaveMatchModal
+          open={leaveOpen}
+          onClose={() => setLeaveOpen(false)}
+          within24h={within24h}
+          busy={busy}
+          onConfirm={async (reason) => {
+            setBusy(true);
+            try {
+              const res = await fetch(`/api/matches/${matchId}/leave`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                // Reason is forward-compatible wire data; backend persistence
+                // is a v1.1 follow-up (no leave_reason column yet).
+                body: JSON.stringify({ reason }),
+              });
+              setLeaveOpen(false);
+              await handleResponse(res, router, toast, {
+                successToast: null,
+                treat404AsOk: true,
+                codeMessages: {
+                  match_locked: "Match has already started",
+                },
+              });
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      </>
     );
   }
 
@@ -186,15 +207,20 @@ function CtaButton(props: {
         variant="ghost"
         disabled={busy}
         onClick={async () => {
-          if (!window.confirm("Cancel your request to join?")) return;
+          const ok = await confirm({
+            title: "Cancel your request to join?",
+            confirmLabel: "Cancel request",
+            cancelLabel: "Keep request",
+          });
+          if (!ok) return;
           setBusy(true);
           try {
             const res = await fetch(
               `/api/matches/${matchId}/cancel-request`,
               { method: "POST" },
             );
-            await handleResponse(res, router, {
-              successToast: null,
+            await handleResponse(res, router, toast, {
+              successToast: "Request cancelled",
               treat404AsOk: true,
               codeMessages: {
                 already_accepted: "You were just accepted!",
@@ -222,7 +248,7 @@ function CtaButton(props: {
             const res = await fetch(`/api/matches/${matchId}/watch`, {
               method: "POST",
             });
-            await handleResponse(res, router, {
+            await handleResponse(res, router, toast, {
               successToast: "We'll ping you next time a spot opens.",
               codeMessages: {
                 not_full: "A spot just opened — refresh to join",
@@ -251,7 +277,7 @@ function CtaButton(props: {
             const res = await fetch(`/api/matches/${matchId}/watch`, {
               method: "DELETE",
             });
-            await handleResponse(res, router, {
+            await handleResponse(res, router, toast, {
               successToast: null,
             });
           } finally {
@@ -291,15 +317,15 @@ function mapVariant(
 }
 
 /**
- * Shared response handler: on 2xx, run `router.refresh()` so the RSC
- * re-fetches; on 4xx, show a code-specific alert (toast system not yet in
- * place — Layer 5 punted on it). Optional `treat404AsOk` covers the spec's
- * idempotency: re-cancel / re-leave on an already-terminal JR should not
- * error in the UI.
+ * Shared response handler: on 2xx, optionally toast + run `router.refresh()`
+ * so the RSC re-fetches; on 4xx, show a code-specific error toast. Optional
+ * `treat404AsOk` covers the spec's idempotency: re-cancel / re-leave on an
+ * already-terminal JR should not error in the UI.
  */
 async function handleResponse(
   res: Response,
   router: ReturnType<typeof useRouter>,
+  toast: (message: string, tone?: ToastTone) => void,
   opts: {
     successToast: string | null;
     treat404AsOk?: boolean;
@@ -307,7 +333,7 @@ async function handleResponse(
   },
 ): Promise<void> {
   if (res.ok) {
-    if (opts.successToast) window.alert(opts.successToast);
+    if (opts.successToast) toast(opts.successToast, "success");
     router.refresh();
     return;
   }
@@ -320,7 +346,7 @@ async function handleResponse(
     | null;
   const code = body?.code ?? `http_${res.status}`;
   const text = opts.codeMessages?.[code] ?? `Error: ${code}`;
-  window.alert(text);
+  toast(text, "error");
   // Refresh so the CTA reflects current server-side state even after a
   // benign error like `already_processed`.
   router.refresh();

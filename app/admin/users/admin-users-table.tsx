@@ -28,6 +28,7 @@ import { useState } from "react";
 
 import { Button } from "@/src/ui/components/button";
 import { Sheet } from "@/src/ui/components/sheet";
+import { useToast } from "@/src/ui/components/toast";
 
 export interface AdminUserRow {
   readonly id: string;
@@ -80,6 +81,7 @@ export function AdminUsersTable({
   activeAdminCount,
 }: AdminUsersTableProps) {
   const router = useRouter();
+  const { toast } = useToast();
   const [modal, setModal] = useState<ModalState | null>(null);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +110,10 @@ export function AdminUsersTable({
       await post(user.id, "unban");
       router.refresh();
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : "Something went wrong.");
+      toast(
+        err instanceof Error ? err.message : "Something went wrong.",
+        "error",
+      );
     } finally {
       setPendingId(null);
     }
