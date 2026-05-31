@@ -42,6 +42,10 @@ model User {
   adminActionsActed    AdminAction[] @relation("AdminActionActor")
   adminActionsReceived AdminAction[] @relation("AdminActionTarget")
 
+  reportsMade     Report[] @relation("ReportReporter")
+  reportsReceived Report[] @relation("ReportTargetUser")
+  reportsReviewed Report[] @relation("ReportReviewer")
+
   @@map("users")
 }
 
@@ -115,6 +119,7 @@ model Match {
   chatMessages  ChatMessage[]
   notifications Notification[]
   remindersSent ReminderSent[]
+  reports       Report[]
 
   @@index([startTime])
   @@index([venueId])
@@ -320,4 +325,55 @@ model AdminAction {
 
   @@index([targetUserId, createdAt])
   @@map("admin_actions")
+}
+
+/// User-submitted abuse report on a match or a player (Layer 9d). Source of
+/// truth: docs/spec/pitchup-spec-personal.md → "/admin/reports" +
+/// docs/spec/pitchup-app-map.md → "Report".
+///
+/// `type` is an app-validated TEXT enum (`match` | `player`) — same convention
+/// as `Notification.type` / `AdminAction.action`. Exactly one of
+/// `targetMatchId` / `targetUserId` is non-null, matching `type` (enforced by
+/// `SubmitReportService`, not a DB CHECK — app-level validation convention).
+///
+/// `status` is a per-row TEXT enum (`new` | `reviewed` | `dismissed`). The
+/// admin list aggregates per target via a status ladder; the row status is
+/// what flips on a `[Review]` action (all `new` → `reviewed`) or `[Dismiss]`
+/// (that one row → `dismissed`).
+///
+/// **UNIQUE(reporter_id, type, target_match_id, target_user_id)** — a repeat
+/// report from the same user on the same target is silently deduplicated
+/// (INSERT … ON CONFLICT DO NOTHING; `SubmitReportService` returns 200 with no
+/// new row). Postgres treats NULLs as distinct, so orphaned (`target_*` NULL)
+/// rows never collide.
+///
+/// **Retained indefinitely** — no TTL (needed for appeals / violation
+/// history, spec app-map → Report). `target_match_id` uses `onDelete: SetNull`
+/// (NOT Cascade) so an admin hard-delete of a match (Layer 9c) does NOT erase
+/// the report trail — the row survives with a null target, shown as
+/// "[Deleted match]" in the admin list. `reporter_id` / `target_user_id` /
+/// `reviewed_by` use RESTRICT: users are only ever soft-deleted, never hard-
+/// removed, so these are never orphaned.
+///
+/// Index `(status, created_at DESC)` drives the `/admin/reports` list scan.
+model Report {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reporterId    String    @map("reporter_id") @db.Uuid
+  type          String
+  targetMatchId String?   @map("target_match_id") @db.Uuid
+  targetUserId  String?   @map("target_user_id") @db.Uuid
+  comment       String    @db.VarChar(500)
+  status        String    @default("new")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  reviewedAt    DateTime? @map("reviewed_at") @db.Timestamptz(6)
+  reviewedBy    String?   @map("reviewed_by") @db.Uuid
+
+  reporter    User   @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Restrict)
+  targetUser  User?  @relation("ReportTargetUser", fields: [targetUserId], references: [id], onDelete: Restrict)
+  targetMatch Match? @relation(fields: [targetMatchId], references: [id], onDelete: SetNull)
+  reviewer    User?  @relation("ReportReviewer", fields: [reviewedBy], references: [id], onDelete: Restrict)
+
+  @@unique([reporterId, type, targetMatchId, targetUserId])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("reports")
 }
