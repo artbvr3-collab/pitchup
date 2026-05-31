@@ -1,0 +1,8 @@
+# The Cloudflare Origin Certificate + private key live here ON THE VPS (secrets).
+# Expected files (placed by hand during deploy — see docs/deploy-runbook.md):
+#   pitchup.online.pem   (origin certificate)
+#   pitchup.online.key   (origin private key)
+# Ignore everything in this folder except this file, so the directory still
+# exists in the repo (Caddy mounts it read-only) but no secret is ever committed.
+*
+!.gitignore

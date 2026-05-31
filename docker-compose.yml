@@ -1,15 +1,16 @@
 # PITCHUP — production stack (Layer 10).
 #
-# 10a (this slice): db + app.
-#   - db:  self-hosted Postgres 16 with a named volume + healthcheck.
-#   - app: the Next.js standalone image; runs `prisma migrate deploy` on start,
-#          then serves on :3000 (bound to localhost — Caddy fronts it in 10b).
-# 10b will add a `caddy` service taking over :80/:443 and reverse-proxying app.
+#   - db:    self-hosted Postgres 16 with a named volume + healthcheck.
+#   - app:   the Next.js standalone image; runs `prisma migrate deploy` on start,
+#            then serves :3000 (localhost-bound — Caddy fronts it).
+#   - caddy: public entrypoint on :80/:443 (TLS via Cloudflare Origin cert),
+#            reverse-proxies app:3000. Runs ONLY under the `prod` profile.
 # 10c will add a `cron` service for the 4 scheduled jobs + pg_dump backups.
 #
 # Local build-and-run:  cp .env.production.example .env && docker compose up --build
+#   (no COMPOSE_PROFILES → caddy skipped; app on localhost:3000)
 # Production (VPS):      docker compose pull && docker compose up -d
-#   (prod pulls the prebuilt GHCR image named by APP_IMAGE; it does not build.)
+#   (COMPOSE_PROFILES=prod in .env → caddy included; prod pulls the GHCR image)
 
 name: pitchup
 
@@ -50,6 +51,9 @@ services:
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
       AUTH_GOOGLE_ID: ${AUTH_GOOGLE_ID:?set AUTH_GOOGLE_ID in .env}
       AUTH_GOOGLE_SECRET: ${AUTH_GOOGLE_SECRET:?set AUTH_GOOGLE_SECRET in .env}
+      # Auth.js v5 absolute callback base behind the proxy. trustHost is already
+      # on; AUTH_URL removes ambiguity (see auth-config.ts + ADR-0006).
+      AUTH_URL: ${AUTH_URL:-https://pitchup.online}
       # Server-side reads of NEXT_PUBLIC_APP_URL (email deep links) — keep equal
       # to the build-arg value used for the client bundle.
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://pitchup.online}
@@ -59,8 +63,32 @@ services:
       ABLY_API_KEY: ${ABLY_API_KEY:-}
       NEXT_PUBLIC_ABLY_SUBSCRIBE_KEY: ${NEXT_PUBLIC_ABLY_SUBSCRIBE_KEY:-}
     ports:
-      # Bind to localhost only — Caddy (10b) will be the public entrypoint.
+      # Bind to localhost only — Caddy is the public entrypoint (prod profile).
+      # Harmless in prod (not externally reachable); handy for `curl localhost:3000`.
       - "127.0.0.1:3000:3000"
+
+  # Public entrypoint. Runs ONLY under the `prod` profile — set
+  # COMPOSE_PROFILES=prod in the VPS .env so `docker compose up -d` includes it.
+  # Locally (no profile) Caddy is skipped and you hit the app on localhost:3000.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    profiles: ["prod"]
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      CADDY_SITE_ADDRESS: ${CADDY_SITE_ADDRESS:-pitchup.online}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/certs:/etc/caddy/certs:ro
+      - caddy_data:/data
+      - caddy_config:/config
 
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:
