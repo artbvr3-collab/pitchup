@@ -292,6 +292,9 @@ export function MatchShell(props: MatchShellProps) {
           crew={props.match.captainCrew}
           viewerRole={props.viewerRole}
           matchId={props.matchId}
+          canShuffle={
+            props.viewerRole === "captain" && state.status !== "Cancelled"
+          }
         />
       ) : (
         <ChatTab

@@ -35,6 +35,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { clearTeamShuffleCaches } from "@/src/ui/lib/team-shuffle";
+
 import { signOutAction } from "./actions";
 
 export interface DeleteAccountModalProps {
@@ -80,6 +82,9 @@ export function DeleteAccountModal(props: DeleteAccountModalProps) {
         credentials: "same-origin",
       });
       if (res.status === 204) {
+        // Clear per-device shuffle caches before signing out (shared-device
+        // guard, spec match.md §349 — same as the Sign-out row).
+        clearTeamShuffleCaches();
         // Server Action handles the cookie + redirect. After signOut
         // returns, the page is /, so we're done.
         await signOutAction();

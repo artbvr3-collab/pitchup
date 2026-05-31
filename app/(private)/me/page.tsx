@@ -48,6 +48,7 @@ import { BrowserNotificationsToggle } from "./browser-notifications-toggle";
 import { DeleteAccountModal } from "./delete-account-modal";
 import { EditProfileSection } from "./edit-profile-section";
 import { EmailNotificationsToggle } from "./email-notifications-toggle";
+import { SignOutButton } from "./sign-out-button";
 
 export const dynamic = "force-dynamic";
 
@@ -133,22 +134,7 @@ export default async function MePage() {
 
       <SectionHeader title="Account" />
       <div className="space-y-3">
-        <form action={signOutAction}>
-          <button
-            type="submit"
-            className="flex w-full items-center justify-between rounded-card bg-bg-card p-4 shadow-card transition-colors hover:bg-bg-card-dim"
-          >
-            <span className="flex items-center gap-3">
-              <span className="text-[18px]" aria-hidden>
-                ↩
-              </span>
-              <span className="text-[15px] font-semibold text-text-primary">
-                Sign out
-              </span>
-            </span>
-            <span className="text-text-secondary">›</span>
-          </button>
-        </form>
+        <SignOutButton />
         <DeleteAccountModal
           isLastAdmin={isLastAdmin}
           captainUpcomingCount={upcomingCaptainMatches.length}

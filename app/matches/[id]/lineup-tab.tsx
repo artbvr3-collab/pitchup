@@ -40,12 +40,21 @@ import { useConfirm } from "@/src/ui/components/confirm";
 import { useToast } from "@/src/ui/components/toast";
 import { cn } from "@/src/ui/lib/cn";
 
+import { ShuffleTeams } from "./shuffle-teams";
+
 export interface LineupTabProps {
   readonly state: MatchStateResponse;
   readonly totalSpots: number;
   readonly crew: readonly string[];
   readonly viewerRole: ViewerRole;
   readonly matchId: string;
+  /**
+   * Whether the [🎲 Shuffle teams] button shows. Captain-only, on every status
+   * except Cancelled (spec match.md "Shuffle teams" — works during/after the
+   * match, unlike the captain sheet). The parent computes this from
+   * matchStatus; the tab just renders.
+   */
+  readonly canShuffle: boolean;
 }
 
 export function LineupTab(props: LineupTabProps) {
@@ -58,6 +67,15 @@ export function LineupTab(props: LineupTabProps) {
 
   return (
     <div className="flex flex-col gap-4">
+      {props.canShuffle && (
+        <div className="flex justify-end">
+          <ShuffleTeams
+            matchId={props.matchId}
+            lineup={props.state.lineup}
+            crew={props.crew}
+          />
+        </div>
+      )}
       <section>
         <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-text-secondary">
           Accepted ({filled} / {props.totalSpots})
