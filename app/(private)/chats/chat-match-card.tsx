@@ -23,6 +23,7 @@ export function ChatMatchCard({ card }: { card: MyChatCardDto }) {
     <div className="relative">
       <MatchCard
         href={`/matches/${card.match.id}?tab=chat`}
+        coverId={card.match.coverId}
         venueName={card.match.venue.name}
         venueAddress={card.match.venue.address}
         startTime={card.match.startTime}

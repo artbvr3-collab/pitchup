@@ -64,6 +64,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 function toWireRow(card: MyMatchCardDto): Record<string, unknown> {
   return {
     match_id: card.match.id,
+    cover_id: card.match.coverId,
     venue_name: card.match.venue.name,
     venue_address: card.match.venue.address,
     start_time: card.match.startTime.toISOString(),

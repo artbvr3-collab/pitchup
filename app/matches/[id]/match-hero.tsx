@@ -1,6 +1,6 @@
 /**
  * MODULE: app.matches.id.match-hero
- * PURPOSE: Top section of the match page — placeholder cover, venue name +
+ * PURPOSE: Top section of the match page — venue cover, venue name +
  *          address, date/time, duration, surface/studs/booked badges,
  *          description, organizer row, slot counter. Mirrors mockup
  *          `mockups/match.html` .hero + .match-header + .meta-list + .slot-counter.
@@ -23,12 +23,14 @@ import * as React from "react";
 
 import { Card } from "@/src/ui/components/card";
 import { cn } from "@/src/ui/lib/cn";
+import { coverBackground, coverIcon } from "@/src/ui/lib/cover-style";
 import type {
   MatchStateMessageAuthor,
   MatchStateWireStatus,
 } from "@/src/match_lifecycle/application/dto/match-state";
 
 export interface MatchHeroProps {
+  readonly coverId: string;
   readonly venueName: string;
   readonly venueAddress: string;
   readonly googleMapsUrl: string | null;
@@ -73,10 +75,16 @@ export function MatchHero(props: MatchHeroProps) {
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Cover placeholder — a tinted gradient until venue covers exist. */}
-      <div className="relative h-[160px] w-full overflow-hidden rounded-card bg-gradient-to-br from-green-dark to-green-mid">
-        <span className="absolute right-3 top-3 rounded-badge bg-bg-card/85 px-2 py-1 text-xs font-semibold text-text-primary">
-          ⚽ Outdoor
+      {/* Venue cover — gradient + icon from the match's snapshotted coverId. */}
+      <div
+        className="relative h-[160px] w-full overflow-hidden rounded-card"
+        style={{ background: coverBackground(props.coverId) }}
+      >
+        <span
+          className="absolute inset-0 flex items-center justify-center text-6xl opacity-90 drop-shadow"
+          aria-hidden
+        >
+          {coverIcon(props.coverId)}
         </span>
       </div>
 

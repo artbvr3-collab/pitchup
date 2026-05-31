@@ -125,6 +125,7 @@ export default async function MatchPage(props: PageProps) {
       }}
       match={{
         id: match.id,
+        coverId: match.coverId,
         startTime: match.startTime.toISOString(),
         duration: match.duration,
         totalSpots: match.totalSpots,

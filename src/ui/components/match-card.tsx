@@ -6,10 +6,11 @@
  *          Approximation until a canonical `mockups/games.html` ships — the
  *          card uses the same primitives + tokens as match.html
  *          (.preview-card, .player-chip), so the visual identity is already
- *          consistent with the rest of the brand. Cover image deliberately
- *          omitted for now; will be reintroduced when venue photos exist.
+ *          consistent with the rest of the brand. The cover band (gradient +
+ *          icon) is rendered from the match's snapshotted `coverId` via the
+ *          canonical `cover-style` palette — no photo assets needed.
  * LAYER: ui
- * DEPENDENCIES: ./card, ./chip, ../lib/cn
+ * DEPENDENCIES: ./card, ./chip, ../lib/cn, ../lib/cover-style
  * CONSUMED BY: app/(public)/games/page.tsx
  * INVARIANTS:
  *   - Pure presentational. All derivation (status, slot math, formatting) is
@@ -23,6 +24,7 @@ import Link from "next/link";
 import * as React from "react";
 
 import { cn } from "@/src/ui/lib/cn";
+import { coverBackground, coverIcon } from "@/src/ui/lib/cover-style";
 
 const STATUS_LABEL: Record<MatchCardProps["status"], string> = {
   open: "Open",
@@ -49,6 +51,7 @@ const SURFACE_LABEL: Record<MatchCardProps["surface"], string> = {
 
 export interface MatchCardProps {
   readonly href: string;
+  readonly coverId: string;
   readonly venueName: string;
   readonly venueAddress: string;
   readonly startTime: Date;
@@ -101,6 +104,16 @@ export function MatchCard(props: MatchCardProps) {
         "block overflow-hidden rounded-card bg-bg-card shadow-card transition-shadow hover:shadow-btn",
       )}
     >
+      <div
+        className="relative h-16 w-full"
+        style={{ background: coverBackground(props.coverId) }}
+        aria-hidden
+      >
+        <span className="absolute bottom-1.5 right-3 text-3xl leading-none opacity-90 drop-shadow-sm">
+          {coverIcon(props.coverId)}
+        </span>
+      </div>
+
       <div className="space-y-3 p-4">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">

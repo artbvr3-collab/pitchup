@@ -60,7 +60,7 @@ Things that don't deserve a layer of their own but must be solved as they come u
 - [ ] `mockups/login.html` shape — already updated, but if any new wordmark variant ships, sync the comment block.
 - [ ] Email sender provider — **Resend chosen** (lowest-friction for the 3 transactional emails: approve / kick / morning-reminder). Write **ADR-0004** + wire `EmailSender` port when Layer 7b ships the first send; needs `RESEND_API_KEY` (human-provided).
 - [x] Background job runner for cron (morning-reminder + Inbox TTL) — **done in Layer 10c**: host crontab → `docker compose run --rm cron <cmd>` (`deploy/crontab.example`, `CRON_TZ=Europe/Prague`). Documented in **ADR-0006** (the ADR-0005 number went to Ably realtime; cron lives in the deploy-topology ADR).
-- [ ] First venue covers — when match cards land in Layer 2, decide if we ship without covers or generate ~10 placeholders.
+- [x] First venue covers — **done in go-live polish (2026-05-31)**: no photos; render the snapshotted `coverId` via the `cover-style` palette (gradient + icon) in `MatchCard` (64px band) + featured card (80px band) + `MatchHero` (160px, centered icon). `coverId` already flowed in every Discover/Map/my-matches/chats/state DTO; only the render + the past wire-row `cover_id` were added. Replaces the Layer-9b "retrofit deferred" note + the Layer-5 hero placeholder.
 - [ ] `docs/spec/ru/*` — frozen archive. Carries stale `plusonefc.app` and `plusonefc:teams:` strings. **Don't touch.** If RU gets revived, do a full re-translation pass, not patches.
 - [ ] Repo folder rename `/PlusOneFC/` → `/pitchup/` — user-managed (requires IDE restart). Do whenever convenient.
 

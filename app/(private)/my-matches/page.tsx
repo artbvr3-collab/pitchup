@@ -160,6 +160,7 @@ function EmptyState() {
 function toWireRow(card: MyMatchCardDto): PastWireRow {
   return {
     match_id: card.match.id,
+    cover_id: card.match.coverId,
     venue_name: card.match.venue.name,
     venue_address: card.match.venue.address,
     start_time: card.match.startTime.toISOString(),

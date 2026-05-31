@@ -236,6 +236,7 @@ export function DiscoverShell(props: DiscoverShellProps) {
               <li key={row.id}>
                 <MatchCard
                   href={`/matches/${row.id}`}
+                  coverId={row.coverId}
                   venueName={row.venue.name}
                   venueAddress={row.venue.address}
                   startTime={new Date(row.startTime)}

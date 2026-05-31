@@ -48,6 +48,7 @@ export function VenueSheet({ venue, onClose }: VenueSheetProps) {
               <li key={match.id}>
                 <MatchCard
                   href={`/matches/${match.id}`}
+                  coverId={match.coverId}
                   venueName={venue.venueName}
                   venueAddress={venue.venueAddress}
                   startTime={new Date(match.startTime)}

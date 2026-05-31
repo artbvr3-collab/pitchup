@@ -65,6 +65,7 @@ export interface MatchShellProps {
   };
   readonly match: {
     readonly id: string;
+    readonly coverId: string;
     readonly startTime: string; // ISO
     readonly duration: number;
     readonly totalSpots: number;
@@ -234,6 +235,7 @@ export function MatchShell(props: MatchShellProps) {
       </div>
 
       <MatchHero
+        coverId={props.match.coverId}
         venueName={props.venue.name}
         venueAddress={props.venue.address}
         googleMapsUrl={props.venue.googleMapsUrl}

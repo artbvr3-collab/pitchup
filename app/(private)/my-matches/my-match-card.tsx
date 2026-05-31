@@ -51,6 +51,7 @@ export function MyMatchCard({ card, variant }: MyMatchCardProps) {
       )}
       <MatchCard
         href={href}
+        coverId={card.match.coverId}
         venueName={card.match.venue.name}
         venueAddress={card.match.venue.address}
         startTime={card.match.startTime}

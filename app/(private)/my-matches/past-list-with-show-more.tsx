@@ -35,6 +35,7 @@ import { cn } from "@/src/ui/lib/cn";
 
 export interface PastWireRow {
   readonly match_id: string;
+  readonly cover_id: string;
   readonly venue_name: string;
   readonly venue_address: string;
   readonly start_time: string;
@@ -139,6 +140,7 @@ function PastRow({ row }: { row: PastWireRow }) {
       )}
       <MatchCard
         href={`/matches/${row.match_id}`}
+        coverId={row.cover_id}
         venueName={row.venue_name}
         venueAddress={row.venue_address}
         startTime={new Date(row.start_time)}
