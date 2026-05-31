@@ -1,0 +1,23 @@
+# Build-context excludes — keep the image lean and the build deterministic.
+# Anything `next build` needs (app/, src/, public/, prisma/, *.config.*,
+# package.json, pnpm-lock.yaml) is intentionally NOT listed here.
+# NOTE: docker-entrypoint.sh is required by the Dockerfile COPY — do not exclude.
+
+node_modules
+.next
+.git
+.gitignore
+.github
+.env*
+*.log
+coverage
+tests
+docs
+mockups
+*.md
+.vscode
+.idea
+.DS_Store
+Dockerfile
+.dockerignore
+docker-compose.yml
