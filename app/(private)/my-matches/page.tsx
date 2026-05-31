@@ -70,11 +70,15 @@ export default async function MyMatchesPage() {
     nextCursor: page.pastCursor ? encodeCursor(page.pastCursor) : null,
   };
 
+  const reminderIds = page.likesReminder.map((r) => r.matchId);
+
   return (
     <main className="mx-auto w-full max-w-[375px] px-4 pb-12 pt-4">
       <h1 className="mb-4 text-[22px] font-bold leading-tight tracking-tight text-text-primary">
         My matches
       </h1>
+
+      {reminderIds.length > 0 && <LikesReminder matchIds={reminderIds} />}
 
       {page.captain.length > 0 && (
         <section className="mb-6">
@@ -110,12 +114,50 @@ export default async function MyMatchesPage() {
       )}
 
       {page.past.length > 0 && (
-        <section className="mb-6">
+        <section id="past-section" className="mb-6 scroll-mt-4">
           <SectionHeader title="Past" />
-          <PastListWithShowMore initial={pastInitial} />
+          <PastListWithShowMore
+            initial={pastInitial}
+            awaitingLikeIds={reminderIds.length >= 2 ? reminderIds : []}
+          />
         </section>
       )}
     </main>
+  );
+}
+
+/**
+ * Likes reminder (spec personal.md → "Likes reminder section"). One Ended
+ * match awaiting likes → a direct "[Open]" link to it. Two or more → a single
+ * line that scrolls to Section Past, where each awaiting card carries an
+ * "Awaiting likes" badge.
+ */
+function LikesReminder({ matchIds }: { matchIds: readonly string[] }) {
+  if (matchIds.length === 1) {
+    return (
+      <Link
+        href={`/matches/${matchIds[0]}`}
+        className="mb-6 flex items-center justify-between gap-3 rounded-card border border-lime bg-lime/15 px-4 py-3"
+      >
+        <span className="text-[14px] font-medium text-text-primary">
+          👍 1 match awaits your likes
+        </span>
+        <span className="text-[14px] font-semibold text-green-dark">
+          Open →
+        </span>
+      </Link>
+    );
+  }
+  return (
+    <a
+      href="#past-section"
+      className="mb-6 flex items-center justify-between gap-3 rounded-card border border-lime bg-lime/15 px-4 py-3"
+    >
+      <span className="text-[14px] font-medium text-text-primary">
+        👍 {matchIds.length} matches await your likes
+      </span>
+      <span className="text-[14px] font-semibold text-green-dark">View →</span>
+    </a>
   );
 }
 

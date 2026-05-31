@@ -80,6 +80,14 @@ export interface MatchStateLineupPlayer {
   readonly user: MatchStateMessageAuthor;
   /** 0..4 — anonymous +N companions occupying adjacent slots. */
   readonly guest_count: number;
+  /**
+   * Post-match likes received by this player on THIS match (Layer 6.X).
+   * Always present; `0` before the match ends (likes can only be placed on
+   * an Ended match). The Lineup tab renders "👍 N" only when `> 0`.
+   */
+  readonly like_count: number;
+  /** `true` when the current viewer has already liked this player. */
+  readonly liked_by_viewer: boolean;
 }
 
 /** One pending request (captain-only). */
@@ -93,6 +101,10 @@ export interface MatchStateLineupPending {
 
 export interface MatchStateLineup {
   readonly captain: MatchStateMessageAuthor;
+  /** Post-match likes received by the captain on this match (Layer 6.X). */
+  readonly captain_like_count: number;
+  /** `true` when the current viewer has already liked the captain. */
+  readonly captain_liked_by_viewer: boolean;
   readonly accepted: readonly MatchStateLineupPlayer[];
   /** Captain-only — non-captains receive `[]`. */
   readonly pending: readonly MatchStateLineupPending[];

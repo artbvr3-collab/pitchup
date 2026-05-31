@@ -47,6 +47,9 @@ model User {
   reportsReceived Report[] @relation("ReportTargetUser")
   reportsReviewed Report[] @relation("ReportReviewer")
 
+  likesGiven    Like[] @relation("LikeGiver")
+  likesReceived Like[] @relation("LikeReceiver")
+
   @@map("users")
 }
 
@@ -122,6 +125,7 @@ model Match {
   notifications Notification[]
   remindersSent ReminderSent[]
   reports       Report[]
+  likes         Like[]
 
   @@index([startTime])
   @@index([venueId])
@@ -410,4 +414,39 @@ model Report {
   @@unique([reporterId, type, targetMatchId, targetUserId])
   @@index([status, createdAt(sort: Desc)])
   @@map("reports")
+}
+
+/// Post-match "like a teammate" (Layer 6.X). Composite PK
+/// `(matchId, giverId, receiverId)` — one like per (giver → receiver) pair per
+/// match, no separate id, no TTL. Created ONLY on an Ended match by a captain /
+/// accepted participant; INSERT … ON CONFLICT DO NOTHING makes a repeat tap
+/// idempotent (200). Likes are irreversible — there is no delete path.
+/// Source of truth: docs/spec/pitchup-spec-match.md → "Post-match likes",
+/// "Per-endpoint checklist" → POST /matches/:id/likes + app-map ERD → Like.
+///
+/// `giver` / `receiver` use `onDelete: Restrict` (same as JoinRequest / Watch):
+/// users are only ever soft-deleted, never hard-removed, so the like history
+/// survives a ban / account deletion (spec §601 — placed likes remain in the
+/// DB, the UI just renders the now-unavailable target as `[Removed user]`).
+/// `match` uses `onDelete: Cascade` — an admin hard-delete of the match (Layer
+/// 9c) takes its likes with it, like every other child row.
+///
+/// The composite PK (leading `match_id`, then `giver_id`) is BOTH the
+/// uniqueness constraint (drives ON CONFLICT) AND the access index for every
+/// read: per-receiver counts (`WHERE match_id = $1 GROUP BY receiver_id`), the
+/// giver's existing likes (`WHERE match_id = $1 AND giver_id = $2`), and the
+/// reminder probe (`WHERE giver_id = $1 AND match_id = ANY($2)`). No secondary
+/// index needed.
+model Like {
+  matchId    String   @map("match_id") @db.Uuid
+  giverId    String   @map("giver_id") @db.Uuid
+  receiverId String   @map("receiver_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  match    Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  giver    User  @relation("LikeGiver", fields: [giverId], references: [id], onDelete: Restrict)
+  receiver User  @relation("LikeReceiver", fields: [receiverId], references: [id], onDelete: Restrict)
+
+  @@id([matchId, giverId, receiverId])
+  @@map("likes")
 }

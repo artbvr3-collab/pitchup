@@ -62,9 +62,18 @@ export interface PastListInitialState {
 
 export interface PastListWithShowMoreProps {
   readonly initial: PastListInitialState;
+  /**
+   * Match ids to badge "👍 Awaiting likes" — the Likes-reminder 2+ case
+   * (spec personal.md → "Likes reminder section"). Empty for the 0/1 cases.
+   */
+  readonly awaitingLikeIds?: readonly string[];
 }
 
-export function PastListWithShowMore({ initial }: PastListWithShowMoreProps) {
+export function PastListWithShowMore({
+  initial,
+  awaitingLikeIds = [],
+}: PastListWithShowMoreProps) {
+  const awaitingSet = new Set(awaitingLikeIds);
   const [rows, setRows] = useState<readonly PastWireRow[]>(initial.rows);
   const [cursor, setCursor] = useState<string | null>(initial.nextCursor);
   const [loading, setLoading] = useState(false);
@@ -98,7 +107,11 @@ export function PastListWithShowMore({ initial }: PastListWithShowMoreProps) {
     <div>
       <div className="space-y-3">
         {rows.map((row) => (
-          <PastRow key={row.match_id} row={row} />
+          <PastRow
+            key={row.match_id}
+            row={row}
+            awaiting={awaitingSet.has(row.match_id)}
+          />
         ))}
       </div>
       {error && (
@@ -123,7 +136,13 @@ export function PastListWithShowMore({ initial }: PastListWithShowMoreProps) {
   );
 }
 
-function PastRow({ row }: { row: PastWireRow }) {
+function PastRow({
+  row,
+  awaiting = false,
+}: {
+  row: PastWireRow;
+  awaiting?: boolean;
+}) {
   const subLabel = derivePastSubLabel(row);
   const badge = row.is_captain
     ? { label: "Captain", tone: "captain" as const }
@@ -131,11 +150,18 @@ function PastRow({ row }: { row: PastWireRow }) {
 
   return (
     <div>
-      {badge && (
+      {(badge || awaiting) && (
         <div className="mb-1.5 flex flex-wrap gap-1.5 px-1">
-          <span className="inline-flex items-center rounded-badge bg-green-dark px-2 py-0.5 text-[11px] font-semibold text-text-inverted">
-            {badge.label}
-          </span>
+          {badge && (
+            <span className="inline-flex items-center rounded-badge bg-green-dark px-2 py-0.5 text-[11px] font-semibold text-text-inverted">
+              {badge.label}
+            </span>
+          )}
+          {awaiting && (
+            <span className="inline-flex items-center rounded-badge bg-lime px-2 py-0.5 text-[11px] font-bold text-lime-text">
+              👍 Awaiting likes
+            </span>
+          )}
         </div>
       )}
       <MatchCard

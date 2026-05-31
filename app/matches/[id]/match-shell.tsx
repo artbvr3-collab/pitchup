@@ -50,6 +50,7 @@ import { useAblyChannel } from "@/src/ui/hooks/use-ably-channel";
 
 import { CaptainSheet } from "./captain-sheet";
 import { ChatTab } from "./chat-tab";
+import { LikeModal } from "./like-modal";
 import { LineupTab } from "./lineup-tab";
 import { MatchCtaBar } from "./match-cta-bar";
 import { MatchHeaderMenu } from "./match-header-menu";
@@ -93,6 +94,22 @@ export function MatchShell(props: MatchShellProps) {
   const [captainSheetOpen, setCaptainSheetOpen] = useState(
     props.autoOpenCaptainSheet,
   );
+
+  // Auto-open the Like modal on the first visit to an Ended match when the
+  // viewer (captain or accepted) hasn't liked anyone yet (spec match.md
+  // "Post-match likes" → "When the modal appears"). Computed once from the
+  // initial snapshot; after closing it won't re-open (the `like` CTA reopens
+  // it manually). The `?action=likes` deep link is explicitly v1.1 — not here.
+  const canLike =
+    props.viewerRole === "captain" || props.viewerRole === "accepted";
+  const [likeModalOpen, setLikeModalOpen] = useState(() => {
+    if (props.initialState.status !== "Ended" || !canLike) return false;
+    const l = props.initialState.lineup;
+    const likedSomeone =
+      l.captain_liked_by_viewer ||
+      l.accepted.some((p) => p.liked_by_viewer);
+    return !likedSomeone;
+  });
 
   // Strip ?tab= and ?sheet= from the URL once we've read them — same
   // convention as the Discover bottom-sheet (router.replace, no history
@@ -263,6 +280,7 @@ export function MatchShell(props: MatchShellProps) {
         startTime={props.match.startTime}
         cta={cta}
         onManageClick={() => setCaptainSheetOpen(true)}
+        onLikeClick={() => setLikeModalOpen(true)}
       />
 
       <MatchTabs activeTab={activeTab} onTabChange={setActiveTab} />
@@ -284,6 +302,19 @@ export function MatchShell(props: MatchShellProps) {
           matchStatus={state.status}
           onMessageSent={(message: MatchStateMessage) =>
             setState((prev) => mergePollPayload(prev, mergeOneMessage(prev, message)))
+          }
+        />
+      )}
+
+      {canLike && (
+        <LikeModal
+          open={likeModalOpen}
+          onClose={() => setLikeModalOpen(false)}
+          matchId={props.matchId}
+          lineup={state.lineup}
+          viewerId={props.viewerId}
+          onLiked={(receiverId) =>
+            setState((prev) => applyViewerLike(prev, receiverId))
           }
         />
       )}
@@ -410,6 +441,37 @@ function resolveAuthorFromLineup(
     if (player.user.id === authorId) return player.user;
   }
   return null;
+}
+
+/**
+ * Apply a like the viewer just placed to the local lineup snapshot so the
+ * Lineup tab's "👍 N" + the modal's "Liked ✓" reflect it immediately,
+ * without waiting for a poll. Idempotent on `liked_by_viewer` (a re-like of
+ * the same target doesn't double-count).
+ */
+function applyViewerLike(
+  prev: MatchStateResponse,
+  receiverId: string,
+): MatchStateResponse {
+  const l = prev.lineup;
+  if (l.captain.id === receiverId) {
+    if (l.captain_liked_by_viewer) return prev;
+    return {
+      ...prev,
+      lineup: {
+        ...l,
+        captain_like_count: l.captain_like_count + 1,
+        captain_liked_by_viewer: true,
+      },
+    };
+  }
+  let changed = false;
+  const accepted = l.accepted.map((p) => {
+    if (p.user.id !== receiverId || p.liked_by_viewer) return p;
+    changed = true;
+    return { ...p, like_count: p.like_count + 1, liked_by_viewer: true };
+  });
+  return changed ? { ...prev, lineup: { ...l, accepted } } : prev;
 }
 
 function wireToDomainStatus(

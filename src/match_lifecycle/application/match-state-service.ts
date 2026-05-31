@@ -41,7 +41,7 @@
  *     §213-216 (chat access by role), "Tab Lineup", "Tab Chat"
  *   - docs/spec/pitchup-spec-global.md → "Polling sync"
  */
-import type { User, UserId } from "@/src/auth/domain/user";
+import { asUserId, type User, type UserId } from "@/src/auth/domain/user";
 import type { UserRepository } from "@/src/auth/domain/user-repository";
 
 import type { ChatMessage } from "@/src/chat/domain/chat-message";
@@ -50,6 +50,7 @@ import type { ChatMessageRepository } from "@/src/chat/domain/chat-message-repos
 import { MatchNotFoundError } from "../domain/errors";
 import type { JoinRequest } from "../domain/join-request";
 import type { JoinRequestRepository } from "../domain/join-request-repository";
+import type { LikeRepository } from "../domain/like-repository";
 import { asMatchId, type MatchId } from "../domain/match";
 import type { MatchRepository } from "../domain/match-repository";
 import { deriveMatchStatus } from "../domain/match-status";
@@ -88,6 +89,7 @@ export class MatchStateService {
     private readonly watchRepository: WatchRepository,
     private readonly chatMessageRepository: ChatMessageRepository,
     private readonly userRepository: UserRepository,
+    private readonly likeRepository: LikeRepository,
   ) {}
 
   async execute(
@@ -103,7 +105,14 @@ export class MatchStateService {
 
     // Fan out the four reads in parallel — none depend on each other and
     // the polling endpoint runs every 15s, so cumulative latency matters.
-    const [accepted, pending, watchingCount, messages] = await Promise.all([
+    const [
+      accepted,
+      pending,
+      watchingCount,
+      messages,
+      likeCounts,
+      viewerLikedIds,
+    ] = await Promise.all([
       this.joinRequestRepository.listAcceptedForMatch(matchId),
       isCaptain
         ? this.joinRequestRepository.listPendingForMatch(matchId)
@@ -114,7 +123,19 @@ export class MatchStateService {
         since: input.since,
         limit: MESSAGE_FETCH_LIMIT,
       }),
+      this.likeRepository.countsByMatch(matchId),
+      input.viewerId !== null
+        ? this.likeRepository.listReceiverIdsLikedByGiver(
+            matchId,
+            asUserId(input.viewerId),
+          )
+        : Promise.resolve([] as readonly UserId[]),
     ]);
+
+    const likeCountByReceiver = new Map<UserId, number>(
+      likeCounts.map((c) => [c.receiverId, c.count]),
+    );
+    const likedByViewer = new Set<UserId>(viewerLikedIds);
 
     // Resolve all user ids in one batch (captain + accepted + pending +
     // message authors). De-dup via Set so a chatty author isn't fetched twice.
@@ -135,7 +156,11 @@ export class MatchStateService {
       messages: messages.map((m) => toWireMessage(m, usersById)),
       lineup: {
         captain: toWireAuthorRequired(match.captainId, usersById),
-        accepted: accepted.map((r) => toWirePlayer(r, usersById)),
+        captain_like_count: likeCountByReceiver.get(match.captainId) ?? 0,
+        captain_liked_by_viewer: likedByViewer.has(match.captainId),
+        accepted: accepted.map((r) =>
+          toWirePlayer(r, usersById, likeCountByReceiver, likedByViewer),
+        ),
         // pending stays Layer 4 — request_id was already on pending.
         pending: pending.map((r) => toWirePending(r, usersById)),
         crew: [...match.captainCrew],
@@ -204,6 +229,8 @@ function toWireMessage(
 function toWirePlayer(
   request: JoinRequest,
   byId: Map<UserId, User>,
+  likeCountByReceiver: ReadonlyMap<UserId, number>,
+  likedByViewer: ReadonlySet<UserId>,
 ): MatchStateLineupPlayer {
   return {
     // Accepted players carry their JoinRequest id so the captain UI can
@@ -213,6 +240,8 @@ function toWirePlayer(
     request_id: request.id,
     user: toWireAuthorRequired(request.userId, byId),
     guest_count: request.guestCount,
+    like_count: likeCountByReceiver.get(request.userId) ?? 0,
+    liked_by_viewer: likedByViewer.has(request.userId),
   };
 }
 

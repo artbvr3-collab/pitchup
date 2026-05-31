@@ -63,12 +63,17 @@ export function LineupTab(props: LineupTabProps) {
           Accepted ({filled} / {props.totalSpots})
         </h2>
         <div className="flex flex-col gap-2">
-          <PlayerRow user={props.state.lineup.captain} badge="Cap" />
+          <PlayerRow
+            user={props.state.lineup.captain}
+            badge="Cap"
+            likeCount={props.state.lineup.captain_like_count}
+          />
           {props.state.lineup.accepted.map((player) => (
             <PlayerRow
               key={player.user.id}
               user={player.user}
               guestCount={player.guest_count}
+              likeCount={player.like_count}
               kick={
                 props.viewerRole === "captain" && player.request_id !== null
                   ? {
@@ -117,11 +122,14 @@ function PlayerRow({
   user,
   badge,
   guestCount,
+  likeCount,
   kick,
 }: {
   user: MatchStateMessageAuthor;
   badge?: string;
   guestCount?: number;
+  /** Post-match likes received (Layer 6.X). Rendered as "👍 N" when > 0. */
+  likeCount?: number;
   /** When non-null, renders the captain-only [Kick] button on the right. */
   kick?: { requestId: string; matchId: string } | null;
 }) {
@@ -142,6 +150,9 @@ function PlayerRow({
               </span>
             ) : null}
           </p>
+          {!isRemoved && likeCount && likeCount > 0 ? (
+            <p className="text-xs text-text-muted">👍 {likeCount}</p>
+          ) : null}
         </div>
         {badge ? (
           <span className="rounded-badge bg-lime px-1.5 py-0.5 text-[10px] font-bold text-lime-text">

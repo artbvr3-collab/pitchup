@@ -37,6 +37,7 @@ import { EditMatchService } from "./application/edit-match-service";
 import { JoinMatchService } from "./application/join-match-service";
 import { KickPlayerService } from "./application/kick-player-service";
 import { LeaveMatchService } from "./application/leave-match-service";
+import { LikeTeammateService } from "./application/like-teammate-service";
 import { ListAdminMatchesService, type AdminMatchStatus } from "./application/list-admin-matches-service";
 import { ListDiscoverMatchesService } from "./application/list-discover-matches";
 import { ListMapMatchesService } from "./application/list-map-matches";
@@ -51,6 +52,7 @@ import { WatchMatchService } from "./application/watch-match-service";
 import {
   adminMatchDeletionRepository,
   joinRequestRepository,
+  likeRepository,
   matchRepository,
   venueRepository,
   watchRepository,
@@ -105,6 +107,7 @@ export const matchStateService = new MatchStateService(
   watchRepository,
   chatMessageRepository,
   userRepository,
+  likeRepository,
 );
 
 export const leaveMatchService = new LeaveMatchService(
@@ -130,6 +133,7 @@ export const listMyMatchesService = new ListMyMatchesService(
   matchRepository,
   joinRequestRepository,
   watchRepository,
+  likeRepository,
 );
 
 export const listMyChatsService = new ListMyChatsService(
@@ -169,6 +173,13 @@ export const autoRejectPendingService = new AutoRejectPendingService(
   joinRequestRepository,
   watchRepository,
   notificationRepository,
+);
+
+export const likeTeammateService = new LikeTeammateService(
+  matchRepository,
+  joinRequestRepository,
+  userRepository,
+  likeRepository,
 );
 
 // Layer 9c — admin match management services

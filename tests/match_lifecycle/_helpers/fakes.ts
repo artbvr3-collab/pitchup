@@ -96,6 +96,11 @@ import type {
   UpsertWatchOutcome,
   WatchRepository,
 } from "@/src/match_lifecycle/domain/watch-repository";
+import type {
+  LikeInsertOutcome,
+  LikeReceiverCount,
+  LikeRepository,
+} from "@/src/match_lifecycle/domain/like-repository";
 import type { MatchWithVenue } from "@/src/match_lifecycle/domain/match";
 import type { Venue } from "@/src/match_lifecycle/domain/venue";
 
@@ -695,6 +700,75 @@ export class FakeWatchRepository implements WatchRepository {
   async deleteForMatchesStartingBefore(beforeStartTime: Date): Promise<number> {
     this.deleteForMatchesStartingBeforeCalls.push(beforeStartTime);
     return this.deleteForMatchesStartingBeforeResult;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// LikeRepository (Layer 6.X — post-match likes)
+// ---------------------------------------------------------------------------
+
+export class FakeLikeRepository implements LikeRepository {
+  /** Keyed by `${matchId}::${giverId}::${receiverId}`. */
+  private rows = new Set<string>();
+  /** Every insertIfAbsent attempt, in call order. */
+  public insertCalls: Array<{
+    matchId: MatchId;
+    giverId: UserId;
+    receiverId: UserId;
+  }> = [];
+
+  /** Test helper — seed an existing like. */
+  seed(matchId: MatchId, giverId: UserId, receiverId: UserId): void {
+    this.rows.add(`${matchId}::${giverId}::${receiverId}`);
+  }
+
+  async insertIfAbsent(
+    matchId: MatchId,
+    giverId: UserId,
+    receiverId: UserId,
+  ): Promise<LikeInsertOutcome> {
+    this.insertCalls.push({ matchId, giverId, receiverId });
+    const key = `${matchId}::${giverId}::${receiverId}`;
+    if (this.rows.has(key)) return "existed";
+    this.rows.add(key);
+    return "inserted";
+  }
+
+  async countsByMatch(matchId: MatchId): Promise<readonly LikeReceiverCount[]> {
+    const counts = new Map<string, number>();
+    for (const key of this.rows) {
+      const [m, , r] = key.split("::");
+      if (m === matchId && r) counts.set(r, (counts.get(r) ?? 0) + 1);
+    }
+    return [...counts.entries()].map(([receiverId, count]) => ({
+      receiverId: receiverId as UserId,
+      count,
+    }));
+  }
+
+  async listReceiverIdsLikedByGiver(
+    matchId: MatchId,
+    giverId: UserId,
+  ): Promise<readonly UserId[]> {
+    const out: UserId[] = [];
+    for (const key of this.rows) {
+      const [m, g, r] = key.split("::");
+      if (m === matchId && g === giverId && r) out.push(r as UserId);
+    }
+    return out;
+  }
+
+  async filterMatchIdsWithLikeFromGiver(
+    giverId: UserId,
+    candidateMatchIds: readonly MatchId[],
+  ): Promise<readonly MatchId[]> {
+    const candidates = new Set<string>(candidateMatchIds);
+    const out = new Set<MatchId>();
+    for (const key of this.rows) {
+      const [m, g] = key.split("::");
+      if (g === giverId && m && candidates.has(m)) out.add(m as MatchId);
+    }
+    return [...out];
   }
 }
 

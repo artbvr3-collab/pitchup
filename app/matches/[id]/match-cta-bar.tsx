@@ -4,8 +4,8 @@
  *          optional info line. Hooks up the live actions:
  *            - Layer 5: `join`, `manage`, `signIn`
  *            - Layer 6: `leave`, `cancelRequest`, `notifyMe`, `stopWatching`
- *          The remaining coming-soon action (`like`, Layer 6.X) still
- *          renders disabled with a "Coming soon" title.
+ *            - Layer 6.X: `like` — opens the post-match Like modal (the
+ *              parent owns the modal; this bar just calls `onLikeClick`).
  * LAYER: interfaces (client)
  * DEPENDENCIES: src/ui/components/button, src/ui/components/toast (useToast),
  *               src/ui/components/confirm (useConfirm),
@@ -45,6 +45,8 @@ export interface MatchCtaBarProps {
   readonly startTime: string; // ISO — drives the Leave "< 24h" warning
   readonly cta: CtaSpec;
   readonly onManageClick: () => void;
+  /** Opens the post-match "Like teammates" modal (Ended, captain/accepted). */
+  readonly onLikeClick: () => void;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -57,6 +59,7 @@ export function MatchCtaBar(props: MatchCtaBarProps) {
         startTime={props.startTime}
         action={props.cta.primary}
         onManageClick={props.onManageClick}
+        onLikeClick={props.onLikeClick}
       />
       {props.cta.secondary && (
         <CtaButton
@@ -64,6 +67,7 @@ export function MatchCtaBar(props: MatchCtaBarProps) {
           startTime={props.startTime}
           action={props.cta.secondary}
           onManageClick={props.onManageClick}
+          onLikeClick={props.onLikeClick}
         />
       )}
       {props.cta.note && (
@@ -78,6 +82,7 @@ function CtaButton(props: {
   startTime: string;
   action: CtaAction;
   onManageClick: () => void;
+  onLikeClick: () => void;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -121,6 +126,14 @@ function CtaButton(props: {
   if (action.type === "manage") {
     return (
       <Button variant="primary" onClick={props.onManageClick}>
+        {action.label}
+      </Button>
+    );
+  }
+
+  if (action.type === "like") {
+    return (
+      <Button variant="primary" onClick={props.onLikeClick}>
         {action.label}
       </Button>
     );

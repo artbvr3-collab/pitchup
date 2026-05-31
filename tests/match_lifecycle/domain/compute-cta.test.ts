@@ -232,11 +232,11 @@ describe("computeCta — scope markers", () => {
     expect(notify.disabled).toBe(false);
   });
 
-  it("`like` remains comingSoon (Layer 6.X — Like aggregate not yet built)", () => {
+  it("`like` is wired (Layer 6.X — not comingSoon, not disabled)", () => {
     const ended = (role: ViewerRole) =>
       computeCta({ matchStatus: "ended", viewerRole: role, isFull: false });
-    expect(ended("captain").primary.comingSoon).toBe(true);
-    expect(ended("accepted").primary.comingSoon).toBe(true);
+    expect(ended("captain").primary.comingSoon).toBe(false);
+    expect(ended("accepted").primary.comingSoon).toBe(false);
   });
 
   it("non-action primary labels (info) stay disabled — they are not buttons", () => {

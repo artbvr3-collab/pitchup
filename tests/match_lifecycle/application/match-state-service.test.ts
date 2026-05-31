@@ -23,6 +23,7 @@ import {
   MESSAGE_FETCH_LIMIT,
 } from "@/src/match_lifecycle/application/match-state-service";
 import { asUserId } from "@/src/auth/domain/user";
+import type { LikeRepository } from "@/src/match_lifecycle/domain/like-repository";
 
 import {
   FakeChatMessageRepository,
@@ -42,6 +43,16 @@ const NOW = new Date("2026-05-26T12:00:00Z");
 // Start time well in the future so the match is "Open" by default.
 const FUTURE_START = new Date("2026-07-01T17:00:00Z");
 
+// MatchStateService gained a LikeRepository dependency (Layer 6.X). These
+// tests don't exercise like counts, so a no-op fake (all reads empty) keeps
+// the existing assertions intact.
+const emptyLikeRepo: LikeRepository = {
+  insertIfAbsent: async () => "inserted",
+  countsByMatch: async () => [],
+  listReceiverIdsLikedByGiver: async () => [],
+  filterMatchIdsWithLikeFromGiver: async () => [],
+};
+
 function makeService() {
   const matchRepo = new FakeMatchRepository();
   const joinRepo = new FakeJoinRequestRepository();
@@ -55,7 +66,7 @@ function makeService() {
   userRepo.seed(makeUser({ id: SEED_PLAYER_ID, name: "Player" }));
   userRepo.seed(makeUser({ id: OTHER_PLAYER_ID, name: "Other" }));
 
-  const service = new MatchStateService(matchRepo, joinRepo, watchRepo, chatRepo, userRepo);
+  const service = new MatchStateService(matchRepo, joinRepo, watchRepo, chatRepo, userRepo, emptyLikeRepo);
   return { service, matchRepo, joinRepo, watchRepo, chatRepo, userRepo };
 }
 
@@ -292,6 +303,7 @@ describe("MatchStateService", () => {
       new FakeWatchRepository(),
       new FakeChatMessageRepository(),
       userRepo,
+      emptyLikeRepo,
     );
 
     const result = await service.execute(

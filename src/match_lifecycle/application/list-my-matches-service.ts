@@ -70,6 +70,7 @@ import {
 } from "../domain/derive-my-status";
 import type { JoinRequest } from "../domain/join-request";
 import type { JoinRequestRepository } from "../domain/join-request-repository";
+import type { LikeRepository } from "../domain/like-repository";
 import type { MatchId, MatchWithVenue } from "../domain/match";
 import type { MatchRepository } from "../domain/match-repository";
 import { deriveMatchStatus, type MatchStatus } from "../domain/match-status";
@@ -115,6 +116,7 @@ export class ListMyMatchesService {
     private readonly matchRepository: MatchRepository,
     private readonly joinRequestRepository: JoinRequestRepository,
     private readonly watchRepository: WatchRepository,
+    private readonly likeRepository: LikeRepository,
   ) {}
 
   async execute(
@@ -144,14 +146,46 @@ export class ListMyMatchesService {
     const nextCursor =
       past.length > limit ? cursorFor(firstPage[firstPage.length - 1]!) : null;
 
+    const likesReminder = await this.computeLikesReminder(input.userId, cards);
+
     return {
       captain,
       upcoming,
       past: firstPage,
       pastCursor: nextCursor,
-      // Layer 6.X — Like aggregate doesn't exist yet.
-      likesReminder: [],
+      likesReminder,
     };
+  }
+
+  /**
+   * Likes reminder (spec personal.md → "Likes reminder section"): Ended
+   * matches where the user was captain or accepted and has not yet liked
+   * anyone. On-read — `candidates − (matches with ≥1 like from the user)`.
+   * The UI shows "1 match awaits your likes · [Open]" for a single match and
+   * "N matches…" + a scroll-to-Past for 2+.
+   */
+  private async computeLikesReminder(
+    userId: UserId,
+    cards: readonly RawCard[],
+  ): Promise<readonly { readonly matchId: string }[]> {
+    const candidateIds = cards
+      .filter(
+        (c) =>
+          c.matchStatus === "ended" &&
+          (c.isCaptain || c.joinRequestStatus === "accepted"),
+      )
+      .map((c) => c.match.id);
+    if (candidateIds.length === 0) return [];
+
+    const likedIds = new Set<string>(
+      await this.likeRepository.filterMatchIdsWithLikeFromGiver(
+        userId,
+        candidateIds,
+      ),
+    );
+    return candidateIds
+      .filter((id) => !likedIds.has(id))
+      .map((matchId) => ({ matchId }));
   }
 
   async executePastPage(

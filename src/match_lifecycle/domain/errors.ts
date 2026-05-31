@@ -337,3 +337,53 @@ export class CapacityBelowFilledError extends AppError {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Layer 6.X — Post-match likes
+// Codes mirror docs/spec/pitchup-spec-match.md → "Per-endpoint checklist"
+// → POST /matches/:id/likes.
+// ---------------------------------------------------------------------------
+
+/**
+ * `409 match_not_ended` — a Like was attempted on a match whose computed
+ * status is not `ended`. Likes are a post-match action only.
+ */
+export class MatchNotEndedError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super(
+      "match_not_ended",
+      "Likes are only available after the match has ended",
+      409,
+      meta,
+    );
+  }
+}
+
+/**
+ * `403 not_a_participant` — the giver was neither the captain nor an accepted
+ * player on this match, so they cannot like teammates. Backstop against a
+ * direct curl; the CTA only renders `[Like teammates]` for captain/accepted.
+ */
+export class NotAParticipantError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super(
+      "not_a_participant",
+      "Only the captain or accepted players can like teammates",
+      403,
+      meta,
+    );
+  }
+}
+
+/**
+ * `404 target_not_found` — the like target does not exist, is banned, is
+ * soft-deleted, or equals the giver (self-like backstop). The modal redraws
+ * the target as `[Removed user]` and toasts "This player is no longer
+ * available." Spec match.md → "Race & idempotency" → "Like + target
+ * deleted/banned".
+ */
+export class LikeTargetNotFoundError extends AppError {
+  constructor(meta: Record<string, unknown> = {}) {
+    super("target_not_found", "This player is no longer available", 404, meta);
+  }
+}

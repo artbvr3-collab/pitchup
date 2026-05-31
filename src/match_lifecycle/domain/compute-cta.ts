@@ -125,15 +125,10 @@ export function computeCta(input: ComputeCtaInput): CtaSpec {
   }
 
   if (matchStatus === "ended") {
-    // Captain + accepted get [Like teammates] (Layer 6.X — still comingSoon).
+    // Captain + accepted get [Like teammates] (Layer 6.X — wired).
     if (viewerRole === "captain" || viewerRole === "accepted") {
       return {
-        primary: makeComingSoon(
-          "like",
-          "Like teammates",
-          "primary",
-          "Coming soon",
-        ),
+        primary: makeActive("like", "Like teammates", "primary"),
       };
     }
     return { primary: makeDisabled("none", "Match ended", "info") };
@@ -254,15 +249,6 @@ function makeActive(
   variant: CtaAction["variant"],
 ): CtaAction {
   return { type, label, disabled: false, comingSoon: false, variant };
-}
-
-function makeComingSoon(
-  type: CtaActionType,
-  label: string,
-  variant: CtaAction["variant"],
-  _tooltipMessage: string,
-): CtaAction {
-  return { type, label, disabled: true, comingSoon: true, variant };
 }
 
 // Silence unused-import warning if a downstream test imports the tooltip

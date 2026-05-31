@@ -13,11 +13,13 @@ import { prisma } from "@/src/shared/db/prisma";
 
 import type { AdminMatchDeletionRepository } from "../domain/admin-match-deletion-repository";
 import type { JoinRequestRepository } from "../domain/join-request-repository";
+import type { LikeRepository } from "../domain/like-repository";
 import type { MatchRepository } from "../domain/match-repository";
 import type { VenueRepository } from "../domain/venue-repository";
 import type { WatchRepository } from "../domain/watch-repository";
 import { PrismaAdminMatchDeletionRepository } from "./prisma-admin-match-deletion-repository";
 import { PrismaJoinRequestRepository } from "./prisma-join-request-repository";
+import { PrismaLikeRepository } from "./prisma-like-repository";
 import { PrismaMatchRepository } from "./prisma-match-repository";
 import { PrismaVenueRepository } from "./prisma-venue-repository";
 import { PrismaWatchRepository } from "./prisma-watch-repository";
@@ -27,5 +29,6 @@ export const venueRepository: VenueRepository = new PrismaVenueRepository(prisma
 export const joinRequestRepository: JoinRequestRepository =
   new PrismaJoinRequestRepository(prisma);
 export const watchRepository: WatchRepository = new PrismaWatchRepository(prisma);
+export const likeRepository: LikeRepository = new PrismaLikeRepository(prisma);
 export const adminMatchDeletionRepository: AdminMatchDeletionRepository =
   new PrismaAdminMatchDeletionRepository(prisma);
