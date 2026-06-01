@@ -63,6 +63,7 @@ export class UpdateVenueService {
       lat: input.lat,
       lng: input.lng,
       googleMapsUrl: input.googleMapsUrl,
+      photoUrl: input.photoUrl,
       surface: input.surface as readonly Surface[],
       coverId: input.coverId,
       active: input.active,

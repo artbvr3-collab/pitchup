@@ -42,6 +42,7 @@ export interface AdminVenueRow {
   readonly lat: number;
   readonly lng: number;
   readonly googleMapsUrl: string | null;
+  readonly photoUrl: string | null;
   readonly surface: readonly ("grass" | "hard")[];
   readonly coverId: string;
   readonly active: boolean;
@@ -70,6 +71,7 @@ interface FormState {
   /** `null` = "Auto" (only selectable when adding). */
   coverId: string | null;
   googleMapsUrl: string;
+  photoUrl: string;
   active: boolean;
 }
 
@@ -87,6 +89,7 @@ function blankForm(): FormState {
     hard: false,
     coverId: null,
     googleMapsUrl: "",
+    photoUrl: "",
     active: true,
   };
 }
@@ -101,6 +104,7 @@ function formFromVenue(v: AdminVenueRow): FormState {
     hard: v.surface.includes("hard"),
     coverId: v.coverId,
     googleMapsUrl: v.googleMapsUrl ?? "",
+    photoUrl: v.photoUrl ?? "",
     active: v.active,
   };
 }
@@ -163,6 +167,7 @@ export function AdminVenuesTable({ rows }: { readonly rows: readonly AdminVenueR
       lng: Number(form.lng),
       surface,
       google_maps_url: form.googleMapsUrl.trim() === "" ? null : form.googleMapsUrl.trim(),
+      photo_url: form.photoUrl.trim() === "" ? null : form.photoUrl.trim(),
       active: form.active,
     };
 
@@ -408,6 +413,15 @@ export function AdminVenuesTable({ rows }: { readonly rows: readonly AdminVenueR
                 value={form.googleMapsUrl}
                 onChange={(e) => patch({ googleMapsUrl: e.target.value })}
                 placeholder="https://maps.google.com/..."
+              />
+            </Field>
+
+            <Field label="Photo URL">
+              <Input
+                type="url"
+                value={form.photoUrl}
+                onChange={(e) => patch({ photoUrl: e.target.value })}
+                placeholder="https://example.com/venue.jpg"
               />
             </Field>
 

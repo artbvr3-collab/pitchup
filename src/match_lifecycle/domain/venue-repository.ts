@@ -52,6 +52,7 @@ export interface VenueWriteFields {
   readonly lat: number;
   readonly lng: number;
   readonly googleMapsUrl: string | null;
+  readonly photoUrl: string | null;
   readonly surface: readonly Surface[];
   readonly coverId: string;
   readonly active: boolean;

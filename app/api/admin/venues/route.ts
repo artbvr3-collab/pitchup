@@ -34,6 +34,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       lat: body.lat,
       lng: body.lng,
       googleMapsUrl: body.google_maps_url,
+      photoUrl: body.photo_url ?? null,
       surface: body.surface,
       ...(body.cover_id ? { coverId: body.cover_id } : {}),
       active: body.active,

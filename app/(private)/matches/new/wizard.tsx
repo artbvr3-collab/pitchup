@@ -39,6 +39,7 @@ import { Input } from "@/src/ui/components/input";
 import { Stepper } from "@/src/ui/components/stepper";
 import { Switch } from "@/src/ui/components/switch";
 import { cn } from "@/src/ui/lib/cn";
+import { coverBackground } from "@/src/ui/lib/cover-style";
 
 import type { VenueView } from "@/src/match_lifecycle/application/list-venues-service";
 
@@ -758,8 +759,16 @@ function VenueItem({
         selected && "border-green-dark hover:bg-bg-card",
       )}
     >
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-bg-surface text-[14px]">
-        ⚽
+      <span
+        className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[8px] text-[14px]"
+        style={venue.photoUrl ? undefined : { background: coverBackground(venue.coverId) }}
+      >
+        {venue.photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={venue.photoUrl} alt="" className="h-full w-full object-cover" />
+        ) : (
+          "⚽"
+        )}
       </span>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[14px] font-semibold leading-tight">

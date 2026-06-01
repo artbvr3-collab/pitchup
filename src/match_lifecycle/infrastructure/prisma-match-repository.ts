@@ -71,6 +71,7 @@ interface RawRow {
   v_lat: number;
   v_lng: number;
   v_google_maps_url: string | null;
+  v_photo_url: string | null;
   v_surface: string[];
   v_cover_id: string;
   v_active: boolean;
@@ -175,8 +176,8 @@ export class PrismaMatchRepository implements MatchRepository {
         m.updated_at,
         v.id AS v_id, v.name AS v_name, v.address AS v_address,
         v.lat AS v_lat, v.lng AS v_lng,
-        v.google_maps_url AS v_google_maps_url, v.surface AS v_surface,
-        v.cover_id AS v_cover_id, v.active AS v_active
+        v.google_maps_url AS v_google_maps_url, v.photo_url AS v_photo_url,
+        v.surface AS v_surface, v.cover_id AS v_cover_id, v.active AS v_active
       FROM matches m
       JOIN venues v ON v.id = m.venue_id
       WHERE ${whereSql}
@@ -410,8 +411,8 @@ export class PrismaMatchRepository implements MatchRepository {
         m.updated_at,
         v.id AS v_id, v.name AS v_name, v.address AS v_address,
         v.lat AS v_lat, v.lng AS v_lng,
-        v.google_maps_url AS v_google_maps_url, v.surface AS v_surface,
-        v.cover_id AS v_cover_id, v.active AS v_active
+        v.google_maps_url AS v_google_maps_url, v.photo_url AS v_photo_url,
+        v.surface AS v_surface, v.cover_id AS v_cover_id, v.active AS v_active
       FROM matches m
       JOIN venues v ON v.id = m.venue_id
       WHERE ${whereSql}
@@ -512,6 +513,7 @@ type MatchWithVenueRow = MatchRow & {
     lat: number;
     lng: number;
     googleMapsUrl: string | null;
+    photoUrl: string | null;
     surface: string[];
     coverId: string;
     active: boolean;
@@ -569,6 +571,7 @@ function matchWithVenueRowToDomain(row: MatchWithVenueRow): MatchWithVenue {
       lat: row.venue.lat,
       lng: row.venue.lng,
       googleMapsUrl: row.venue.googleMapsUrl,
+      photoUrl: row.venue.photoUrl,
       surface: row.venue.surface as readonly Surface[],
       coverId: row.venue.coverId,
       active: row.venue.active,
@@ -637,6 +640,7 @@ function mapVenue(row: RawRow): Venue {
     lat: row.v_lat,
     lng: row.v_lng,
     googleMapsUrl: row.v_google_maps_url,
+    photoUrl: row.v_photo_url,
     surface: row.v_surface as readonly Surface[],
     coverId: row.v_cover_id,
     active: row.v_active,

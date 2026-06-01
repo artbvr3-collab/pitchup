@@ -56,6 +56,7 @@ export default async function AdminVenuesPage({
     lat: v.lat,
     lng: v.lng,
     googleMapsUrl: v.googleMapsUrl,
+    photoUrl: v.photoUrl,
     surface: [...v.surface],
     coverId: v.coverId,
     active: v.active,

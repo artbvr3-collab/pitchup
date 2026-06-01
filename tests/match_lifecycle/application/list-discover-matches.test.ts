@@ -125,6 +125,7 @@ function makeMatch(overrides: Partial<MatchWithVenue> = {}): MatchWithVenue {
       lat: 50.0793,
       lng: 14.3879,
       googleMapsUrl: null,
+      photoUrl: null,
       surface: ["grass"],
       coverId: "cover-001",
       active: true,

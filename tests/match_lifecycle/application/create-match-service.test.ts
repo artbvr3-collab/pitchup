@@ -147,6 +147,7 @@ function makeVenue(overrides: Partial<Venue> = {}): Venue {
     lat: 50.097,
     lng: 14.418,
     googleMapsUrl: null,
+    photoUrl: null,
     surface: ["grass", "hard"] as readonly Surface[],
     coverId: "cover-letna-1",
     active: true,

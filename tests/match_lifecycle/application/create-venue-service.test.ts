@@ -25,6 +25,7 @@ const BASE = {
   lat: 50.0793,
   lng: 14.3879,
   googleMapsUrl: null,
+  photoUrl: null,
   surface: ["grass"] as const,
   active: true,
 };

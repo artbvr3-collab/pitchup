@@ -33,6 +33,7 @@ interface VenueRow {
   lat: number;
   lng: number;
   googleMapsUrl: string | null;
+  photoUrl: string | null;
   surface: string[];
   coverId: string;
   active: boolean;
@@ -88,6 +89,7 @@ export class PrismaVenueRepository implements VenueRepository {
         lat: input.lat,
         lng: input.lng,
         googleMapsUrl: input.googleMapsUrl,
+        photoUrl: input.photoUrl,
         surface: input.surface as Surface[],
         coverId: input.coverId,
         active: input.active,
@@ -105,6 +107,7 @@ export class PrismaVenueRepository implements VenueRepository {
         lat: patch.lat,
         lng: patch.lng,
         googleMapsUrl: patch.googleMapsUrl,
+        photoUrl: patch.photoUrl,
         surface: patch.surface as Surface[],
         coverId: patch.coverId,
         active: patch.active,
@@ -131,6 +134,7 @@ function toDomain(row: VenueRow): Venue {
     lat: row.lat,
     lng: row.lng,
     googleMapsUrl: row.googleMapsUrl,
+    photoUrl: row.photoUrl,
     surface: row.surface as readonly Surface[],
     coverId: row.coverId,
     active: row.active,

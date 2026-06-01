@@ -39,8 +39,8 @@ const surfaceSchema = z
     message: "duplicate surface",
   });
 
-/** Blank / whitespace-only Google Maps URL collapses to `null`. */
-const googleMapsUrlSchema = z
+/** Blank / whitespace-only URL collapses to `null`. */
+const optionalUrlSchema = z
   .string()
   .trim()
   .max(500)
@@ -56,7 +56,8 @@ const baseVenueFields = {
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
   surface: surfaceSchema,
-  google_maps_url: googleMapsUrlSchema,
+  google_maps_url: optionalUrlSchema,
+  photo_url: optionalUrlSchema,
   active: z.boolean(),
 };
 
@@ -89,6 +90,7 @@ export interface CreateVenueServiceInput {
   readonly lat: number;
   readonly lng: number;
   readonly googleMapsUrl: string | null;
+  readonly photoUrl: string | null;
   readonly surface: readonly ("grass" | "hard")[];
   readonly coverId?: string;
   readonly active: boolean;
@@ -101,6 +103,7 @@ export interface UpdateVenueServiceInput {
   readonly lat: number;
   readonly lng: number;
   readonly googleMapsUrl: string | null;
+  readonly photoUrl: string | null;
   readonly surface: readonly ("grass" | "hard")[];
   readonly coverId: string;
   readonly active: boolean;

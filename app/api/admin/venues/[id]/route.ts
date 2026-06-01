@@ -42,6 +42,7 @@ export async function PATCH(
         lat: body.lat,
         lng: body.lng,
         googleMapsUrl: body.google_maps_url,
+        photoUrl: body.photo_url ?? null,
         surface: body.surface,
         coverId: body.cover_id,
         active: body.active,

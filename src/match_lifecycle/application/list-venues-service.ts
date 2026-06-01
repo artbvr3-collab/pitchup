@@ -20,6 +20,7 @@ export interface VenueView {
   readonly lng: number;
   readonly surface: readonly ("grass" | "hard")[];
   readonly coverId: string;
+  readonly photoUrl: string | null;
 }
 
 export class ListVenuesService {
@@ -40,5 +41,6 @@ function toView(venue: Venue): VenueView {
     lng: venue.lng,
     surface: venue.surface,
     coverId: venue.coverId,
+    photoUrl: venue.photoUrl,
   };
 }

@@ -32,6 +32,7 @@ const VENUE: Venue = {
   lat: 50.097,
   lng: 14.418,
   googleMapsUrl: null,
+  photoUrl: null,
   surface: ["grass"],
   coverId: "cover-letna-1",
   active: true,

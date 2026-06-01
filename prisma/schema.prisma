@@ -69,6 +69,7 @@ model Venue {
   lat           Float    @db.DoublePrecision
   lng           Float    @db.DoublePrecision
   googleMapsUrl String?  @map("google_maps_url")
+  photoUrl      String?  @map("photo_url")
   surface       String[] @db.Text
   coverId       String   @map("cover_id") @db.VarChar(40)
   active        Boolean  @default(true)
