@@ -68,6 +68,13 @@ services:
       RESEND_FROM: ${RESEND_FROM:-}
       ABLY_API_KEY: ${ABLY_API_KEY:-}
       NEXT_PUBLIC_ABLY_SUBSCRIBE_KEY: ${NEXT_PUBLIC_ABLY_SUBSCRIBE_KEY:-}
+      # Cloudflare R2 (venue photo uploads) — all optional; absent → the admin
+      # upload route returns 503 and the form falls back to paste-a-URL.
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      R2_BUCKET: ${R2_BUCKET:-}
+      R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL:-}
     ports:
       # Bind to localhost only — Caddy is the public entrypoint (prod profile).
       # Harmless in prod (not externally reachable); handy for `curl localhost:3000`.
