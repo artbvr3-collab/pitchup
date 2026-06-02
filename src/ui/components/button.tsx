@@ -22,8 +22,9 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: "bg-green-dark text-text-inverted shadow-btn hover:bg-green-mid",
-        lime: "bg-lime text-lime-text shadow-btn-lime hover:bg-lime-dark",
+        primary:
+          "bg-gradient-green text-text-inverted shadow-btn hover:opacity-95",
+        lime: "bg-gradient-lime text-lime-text shadow-btn-lime hover:opacity-95",
         ghost:
           "border-[1.5px] border-border bg-bg-card text-text-primary hover:bg-bg-surface",
         "destructive-ghost":

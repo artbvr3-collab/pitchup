@@ -46,16 +46,22 @@
   --destructive: #dc2626;
   --destructive-bg: #fee2e2;
 
-  /* Radii */
-  --radius-card: 16px;
-  --radius-btn: 12px;
+  /* Radii — bumped for a friendlier, "candy" feel (Juicy turf direction) */
+  --radius-card: 20px;
+  --radius-btn: 14px;
   --radius-chip: 9999px;
-  --radius-badge: 6px;
+  --radius-badge: 8px;
 
-  /* Shadows */
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-btn: 0 2px 8px rgba(14, 92, 47, 0.25);
-  --shadow-btn-lime: 0 2px 8px rgba(197, 230, 60, 0.3);
+  /* Gradients (Juicy turf) — green CTA, lime CTA, hero wash */
+  --gradient-green: linear-gradient(135deg, #176b38, #0e5c2f);
+  --gradient-lime: linear-gradient(135deg, #c5e63c, #a8c82e);
+  --gradient-hero: linear-gradient(135deg, rgba(197, 230, 60, 0.18), rgba(14, 92, 47, 0.06));
+
+  /* Shadows — softer + larger spread so cards visibly "float" */
+  --shadow-card: 0 10px 28px rgba(14, 92, 47, 0.13), 0 2px 6px rgba(0, 0, 0, 0.05);
+  --shadow-btn: 0 6px 18px rgba(14, 92, 47, 0.32);
+  --shadow-btn-lime: 0 6px 18px rgba(197, 230, 60, 0.50);
+  --shadow-nav: 0 -6px 24px rgba(14, 92, 47, 0.10);
 }
 
 /*
@@ -66,11 +72,26 @@
 body {
   background: var(--bg-surface);
   color: var(--text-primary);
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
   line-height: 1.5;
 }
 
 @layer utilities {
+  .font-sans {
+    font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  }
+  /* Token-bound gradient utilities (Juicy turf). Defined here rather than in
+     tailwind.config so they rebuild with the stylesheet — still purged to
+     only the classes used in source. */
+  .bg-gradient-green {
+    background-image: var(--gradient-green);
+  }
+  .bg-gradient-lime {
+    background-image: var(--gradient-lime);
+  }
+  .bg-gradient-hero {
+    background-image: var(--gradient-hero);
+  }
   .focus-ring-green {
     outline: none;
     box-shadow: 0 0 0 3px rgba(14, 92, 47, 0.1);

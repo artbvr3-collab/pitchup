@@ -7,7 +7,7 @@
  * RELATED DOCS: docs/ARCHITECTURE.md §11.
  */
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
 import { optionalAuth } from "@/src/auth/composition";
@@ -16,10 +16,11 @@ import { BottomNav } from "@/src/ui/components/bottom-nav";
 import { AppProviders } from "./app-providers";
 import { SignedInChrome } from "./signed-in-chrome";
 
-const inter = Inter({
+const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-sans",
   display: "swap",
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 export const metadata: Metadata = {
@@ -45,7 +46,7 @@ export default async function RootLayout({
   const session = await optionalAuth();
 
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={plusJakartaSans.variable}>
       <body className="bg-bg-surface font-sans text-[15px] text-text-primary">
         <AppProviders>
           <div className="mx-auto flex min-h-dvh max-w-screen flex-col bg-bg-base">

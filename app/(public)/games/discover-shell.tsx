@@ -237,6 +237,7 @@ export function DiscoverShell(props: DiscoverShellProps) {
                 <MatchCard
                   href={`/matches/${row.id}`}
                   coverId={row.coverId}
+                  photoUrl={row.venue.photoUrl}
                   venueName={row.venue.name}
                   venueAddress={row.venue.address}
                   startTime={new Date(row.startTime)}

@@ -11,7 +11,7 @@
 "use client";
 
 import * as React from "react";
-import { Minus, Plus } from "lucide-react";
+import { Minus, Plus } from "@phosphor-icons/react";
 import { cn } from "@/src/ui/lib/cn";
 
 export interface StepperProps {
@@ -55,7 +55,7 @@ export function Stepper({
           "disabled:cursor-not-allowed disabled:text-text-muted disabled:hover:bg-transparent",
         )}
       >
-        <Minus size={18} strokeWidth={2.5} />
+        <Minus size={18} weight="bold" />
       </button>
       <span
         aria-live="polite"
@@ -73,7 +73,7 @@ export function Stepper({
           "disabled:cursor-not-allowed disabled:text-text-muted disabled:hover:bg-transparent",
         )}
       >
-        <Plus size={18} strokeWidth={2.5} />
+        <Plus size={18} weight="bold" />
       </button>
     </div>
   );

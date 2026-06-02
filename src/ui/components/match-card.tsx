@@ -25,6 +25,7 @@ import * as React from "react";
 
 import { cn } from "@/src/ui/lib/cn";
 import { coverBackground, coverIcon } from "@/src/ui/lib/cover-style";
+import { Icon } from "@/src/ui/components/icon";
 
 const STATUS_LABEL: Record<MatchCardProps["status"], string> = {
   open: "Open",
@@ -52,6 +53,9 @@ const SURFACE_LABEL: Record<MatchCardProps["surface"], string> = {
 export interface MatchCardProps {
   readonly href: string;
   readonly coverId: string;
+  /** Real venue photo (Places API). When present, replaces the coverId
+   *  gradient + emoji header. Falls back to coverId when null/undefined. */
+  readonly photoUrl?: string | null;
   readonly venueName: string;
   readonly venueAddress: string;
   readonly startTime: Date;
@@ -106,15 +110,27 @@ export function MatchCard(props: MatchCardProps) {
         "block overflow-hidden rounded-card bg-bg-card shadow-card transition-shadow hover:shadow-btn",
       )}
     >
-      <div
-        className="relative h-16 w-full"
-        style={{ background: coverBackground(props.coverId) }}
-        aria-hidden
-      >
-        <span className="absolute bottom-1.5 right-3 text-3xl leading-none opacity-90 drop-shadow-sm">
-          {coverIcon(props.coverId)}
-        </span>
-      </div>
+      {props.photoUrl ? (
+        <div className="relative h-24 w-full" aria-hidden>
+          <img
+            src={props.photoUrl}
+            alt=""
+            loading="lazy"
+            className="h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
+        </div>
+      ) : (
+        <div
+          className="relative h-24 w-full"
+          style={{ background: coverBackground(props.coverId) }}
+          aria-hidden
+        >
+          <span className="absolute bottom-2 right-3 text-4xl leading-none opacity-90 drop-shadow-sm">
+            {coverIcon(props.coverId)}
+          </span>
+        </div>
+      )}
 
       <div className="space-y-3 p-4">
         <div className="flex items-start gap-3">
@@ -122,7 +138,12 @@ export function MatchCard(props: MatchCardProps) {
             <div className="text-[15px] font-semibold leading-tight text-text-primary">
               {props.venueName}
             </div>
-            <div className="mt-0.5 text-[12px] text-text-secondary">
+            <div className="mt-0.5 flex items-center gap-1 text-[12px] text-text-secondary">
+              <Icon
+                name="map-point-wave-bold-duotone"
+                size={14}
+                className="shrink-0 text-green-dark"
+              />
               {props.venueAddress}
             </div>
           </div>
@@ -136,42 +157,61 @@ export function MatchCard(props: MatchCardProps) {
           </span>
         </div>
 
-        <div className="flex items-baseline gap-2 text-[13px] text-text-primary">
-          <span className="font-semibold">{dateLabel}</span>
-          <span className="text-text-secondary">·</span>
-          <span className="font-semibold">{timeLabel}</span>
-          <span className="text-text-secondary">·</span>
+        <div className="flex items-center gap-4 text-[13px] text-text-primary">
+          <span className="flex items-center gap-1.5 font-semibold">
+            <Icon
+              name="calendar-bold-duotone"
+              size={16}
+              className="text-green-dark"
+            />
+            {dateLabel}
+          </span>
+          <span className="flex items-center gap-1.5 font-semibold">
+            <Icon
+              name="clock-circle-bold-duotone"
+              size={16}
+              className="text-green-dark"
+            />
+            {timeLabel}
+          </span>
           <span className="text-text-secondary">{props.duration} min</span>
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
-          <span className="inline-flex items-center rounded-badge border border-border bg-bg-card-dim px-2 py-0.5 text-text-secondary">
+          <span className="inline-flex items-center rounded-full bg-[rgba(14,92,47,0.07)] px-2.5 py-1 font-medium text-green-mid">
             {SURFACE_LABEL[props.surface]}
           </span>
           {props.surface === "grass" && (
-            <span className="inline-flex items-center rounded-badge border border-border bg-bg-card-dim px-2 py-0.5 text-text-secondary">
+            <span className="inline-flex items-center rounded-full bg-[rgba(14,92,47,0.07)] px-2.5 py-1 font-medium text-green-mid">
               {props.studsAllowed ? "Studs OK" : "No studs"}
             </span>
           )}
           {props.fieldBooked && (
-            <span className="inline-flex items-center rounded-badge border border-border bg-bg-card-dim px-2 py-0.5 text-text-secondary">
-              ✓ Field booked
+            <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(14,92,47,0.07)] px-2.5 py-1 font-medium text-green-mid">
+              <Icon name="check-circle-bold-duotone" size={13} />
+              Field booked
             </span>
           )}
         </div>
 
         <div className="flex items-center justify-between border-t border-border pt-3 text-[13px]">
-          <div className="text-text-primary">
+          <div className="flex items-center gap-1.5 text-text-primary">
+            <Icon
+              name="users-group-rounded-bold-duotone"
+              size={16}
+              className="text-status-almost"
+            />
             <span className="font-semibold">
               {props.slots.filled} / {props.slots.capacity}
             </span>
-            <span className="ml-2 text-text-secondary">
+            <span className="text-text-secondary">
               {props.slots.free === 0
                 ? "no spots left"
                 : `${props.slots.free} ${props.slots.free === 1 ? "spot" : "spots"} open`}
             </span>
           </div>
-          <div className="font-semibold text-text-primary">
+          <div className="flex items-center gap-1 font-semibold text-green-dark">
+            <Icon name="tag-price-bold-duotone" size={16} />
             {formatPrice(props.price)}
           </div>
         </div>

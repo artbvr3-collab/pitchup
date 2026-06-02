@@ -47,6 +47,7 @@ export interface DiscoverMatchView {
     readonly id: VenueId;
     readonly name: string;
     readonly address: string;
+    readonly photoUrl: string | null;
   };
   readonly slots: SlotInfo;
   readonly status: MatchStatus;
@@ -110,6 +111,7 @@ export class ListDiscoverMatchesService {
           id: match.venue.id,
           name: match.venue.name,
           address: match.venue.address,
+          photoUrl: match.venue.photoUrl,
         },
         slots,
         status,

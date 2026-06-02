@@ -63,9 +63,10 @@ const config: Config = {
         card: "var(--shadow-card)",
         btn: "var(--shadow-btn)",
         "btn-lime": "var(--shadow-btn-lime)",
+        nav: "var(--shadow-nav)",
       },
       fontFamily: {
-        sans: ['"Inter"', "system-ui", "-apple-system", "sans-serif"],
+        sans: ["var(--font-sans)", "system-ui", "-apple-system", "sans-serif"],
       },
       maxWidth: {
         screen: "375px",

@@ -24,6 +24,7 @@ export interface DiscoverRow {
     readonly id: string;
     readonly name: string;
     readonly address: string;
+    readonly photoUrl: string | null;
   };
   readonly slots: {
     readonly filled: number;

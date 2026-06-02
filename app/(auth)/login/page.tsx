@@ -12,6 +12,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/src/auth/infrastructure/auth";
 
+import { DevSignInButton } from "./dev-sign-in-button";
 import { GoogleSignInButton } from "./google-sign-in-button";
 
 interface LoginPageProps {
@@ -92,6 +93,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       )}
 
       <GoogleSignInButton {...(callbackUrl !== undefined ? { callbackUrl } : {})} />
+
+      {process.env.NODE_ENV !== "production" && process.env.DEV_LOGIN_GOOGLE_SUB && (
+        <DevSignInButton
+          googleSub={process.env.DEV_LOGIN_GOOGLE_SUB}
+          {...(callbackUrl !== undefined ? { callbackUrl } : {})}
+        />
+      )}
 
       <p className="mt-[14px] text-center text-[12px] leading-[1.5] text-text-muted">
         <span className="font-medium text-text-secondary">

@@ -44,6 +44,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       venueId: string;
       venueName: string;
       venueAddress: string;
+      venuePhotoUrl: string | null;
       lat: number;
       lng: number;
       matches: (typeof result.matches[number])[];
@@ -57,6 +58,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         venueId: vid,
         venueName: match.venue.name,
         venueAddress: match.venue.address,
+        venuePhotoUrl: match.venue.photoUrl,
         lat: match.venue.lat,
         lng: match.venue.lng,
         matches: [],
@@ -69,6 +71,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     venueId: v.venueId,
     venueName: v.venueName,
     venueAddress: v.venueAddress,
+    venuePhotoUrl: v.venuePhotoUrl,
     lat: v.lat,
     lng: v.lng,
     matches: v.matches.map((m) => ({

@@ -1,11 +1,10 @@
 /**
  * MODULE: app.matches.id.match-hero
- * PURPOSE: Top section of the match page — venue cover, venue name +
- *          address, date/time, duration, surface/studs/booked badges,
- *          description, organizer row, slot counter. Mirrors mockup
- *          `mockups/match.html` .hero + .match-header + .meta-list + .slot-counter.
- *          Visual polish kept pragmatic for Layer 5; pixel-perfect parity
- *          will follow once venue cover assets exist.
+ * PURPOSE: Top section of the match page — venue cover (the real venue photo
+ *          when present, else the coverId gradient), venue name + address,
+ *          date/time, duration, surface/studs/booked badges, description,
+ *          organizer row, slot counter. Mirrors mockup `mockups/match.html`
+ *          .hero + .match-header + .meta-list + .slot-counter.
  * LAYER: interfaces (client; pure presentational, no state)
  * DEPENDENCIES: src/ui/components/card, src/ui/lib/cn
  * INVARIANTS:
@@ -31,6 +30,7 @@ import type {
 
 export interface MatchHeroProps {
   readonly coverId: string;
+  readonly photoUrl: string | null;
   readonly venueName: string;
   readonly venueAddress: string;
   readonly googleMapsUrl: string | null;
@@ -75,17 +75,28 @@ export function MatchHero(props: MatchHeroProps) {
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Venue cover — gradient + icon from the match's snapshotted coverId. */}
+      {/* Venue cover — the real venue photo when present, else the gradient +
+          icon from the match's snapshotted coverId (same photo-first fallback
+          as MatchCard / featured card). */}
       <div
         className="relative h-[160px] w-full overflow-hidden rounded-card"
-        style={{ background: coverBackground(props.coverId) }}
+        style={props.photoUrl ? undefined : { background: coverBackground(props.coverId) }}
       >
-        <span
-          className="absolute inset-0 flex items-center justify-center text-6xl opacity-90 drop-shadow"
-          aria-hidden
-        >
-          {coverIcon(props.coverId)}
-        </span>
+        {props.photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- remote R2 host varies; plain img avoids next/image remotePatterns config
+          <img
+            src={props.photoUrl}
+            alt={props.venueName}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <span
+            className="absolute inset-0 flex items-center justify-center text-6xl opacity-90 drop-shadow"
+            aria-hidden
+          >
+            {coverIcon(props.coverId)}
+          </span>
+        )}
       </div>
 
       {props.status === "Cancelled" && (

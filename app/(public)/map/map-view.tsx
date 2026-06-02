@@ -60,6 +60,7 @@ export interface MapVenue {
   readonly venueId: string;
   readonly venueName: string;
   readonly venueAddress: string;
+  readonly venuePhotoUrl: string | null;
   readonly lat: number;
   readonly lng: number;
   readonly matches: readonly MapMatch[];
@@ -379,9 +380,16 @@ export function MapView({ initialFilters, autoOpenLocationModal }: MapViewProps)
   };
 
   return (
-    <div className="relative flex flex-col" style={{ height: "calc(100dvh - 56px)" }}>
-      {/* Map container */}
-      <div ref={mapContainerRef} className="absolute inset-0" />
+    // h-12 SignedInChrome header + h-14 BottomNav = 104px reserved chrome.
+    // The chrome only renders for signed-in users on this public route; for
+    // guests the header is absent, but reserving 48px there just trims 48px
+    // of map (no visible bug) instead of having the map spill 48px under the
+    // nav for signed-in users.
+    <div className="relative flex flex-col" style={{ height: "calc(100dvh - 104px)" }}>
+      {/* Map container — MapLibre forces position:relative on init, so use
+          explicit h-full/w-full instead of absolute+inset-0 (which would
+          require position:absolute to size). */}
+      <div ref={mapContainerRef} className="h-full w-full" />
 
       {/* Overlay UI (above map) */}
       {!pickMode && (

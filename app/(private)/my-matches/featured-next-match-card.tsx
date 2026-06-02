@@ -59,15 +59,28 @@ export function FeaturedNextMatchCard({
       href={href}
       className="block overflow-hidden rounded-card bg-bg-card shadow-card transition-shadow hover:shadow-btn"
     >
-      <div
-        className="relative h-20 w-full"
-        style={{ background: coverBackground(card.match.coverId) }}
-        aria-hidden
-      >
-        <span className="absolute bottom-2 right-4 text-4xl leading-none opacity-90 drop-shadow-sm">
-          {coverIcon(card.match.coverId)}
-        </span>
-      </div>
+      {card.match.venue.photoUrl ? (
+        <div className="relative h-20 w-full" aria-hidden>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={card.match.venue.photoUrl}
+            alt=""
+            loading="lazy"
+            className="h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent" />
+        </div>
+      ) : (
+        <div
+          className="relative h-20 w-full"
+          style={{ background: coverBackground(card.match.coverId) }}
+          aria-hidden
+        >
+          <span className="absolute bottom-2 right-4 text-4xl leading-none opacity-90 drop-shadow-sm">
+            {coverIcon(card.match.coverId)}
+          </span>
+        </div>
+      )}
 
       <div className="space-y-3 p-5">
         <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">

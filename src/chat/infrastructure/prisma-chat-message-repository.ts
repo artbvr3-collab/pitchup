@@ -121,7 +121,7 @@ export class PrismaChatMessageRepository implements ChatMessageRepository {
       this.prisma.$queryRaw<LastMsgRow[]>(Prisma.sql`
         SELECT DISTINCT ON (match_id) match_id, text, author_id
         FROM chat_messages
-        WHERE match_id = ANY(${ids}) AND deleted_at IS NULL
+        WHERE match_id = ANY(${ids}::uuid[]) AND deleted_at IS NULL
         ORDER BY match_id, created_at DESC
       `),
     ]);

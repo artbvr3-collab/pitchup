@@ -1,0 +1,722 @@
+[
+  {
+    "name": "Action Park",
+    "address": "Výpadová 157, Lahovice, 159 00 Praha-Zbraslav, Česko",
+    "lat": 49.994552399999996,
+    "lng": 14.3956349,
+    "googleMapsUrl": "https://maps.google.com/?cid=4889377810460011314&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/action-park-ChIJWSIH.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-001"
+  },
+  {
+    "name": "Spartak Hrdlořezy - BŘEŽANKA",
+    "address": "Před Mosty 1, 190 00 Praha 9, Česko",
+    "lat": 50.0950984,
+    "lng": 14.518760200000001,
+    "googleMapsUrl": "https://maps.google.com/?cid=15639213786877906623&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/spartak-hrdlorezy-brezanka-ChIJd_9f.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-002"
+  },
+  {
+    "name": "Sportovní areál HAMR - Braník",
+    "address": "Vltavanů 1542, 147 00 Praha 4-Hodkovičky, Česko",
+    "lat": 50.0277861,
+    "lng": 14.4023839,
+    "googleMapsUrl": "https://maps.google.com/?cid=13901887925112463818&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/sportovni-areal-hamr-branik-ChIJsYXW.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-003"
+  },
+  {
+    "name": "Eagles Praha z.s.",
+    "address": "Pálkařská 225, 140 00 Praha 4-Krč, Česko",
+    "lat": 50.0335774,
+    "lng": 14.4342159,
+    "googleMapsUrl": "https://maps.google.com/?cid=14151242325200521220&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/eagles-praha-z-s-ChIJDxPT.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-004"
+  },
+  {
+    "name": "Stadion FK Viktoria Žižkov",
+    "address": "Seifertova, Žižkov, 130 00 Praha-Praha 3, Česko",
+    "lat": 50.0839147,
+    "lng": 14.444593999999999,
+    "googleMapsUrl": "https://maps.google.com/?cid=4956807620984894835&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/stadion-fk-viktoria-zizkov-ChIJxeal.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-005"
+  },
+  {
+    "name": "FC Tempo Praha, z.s.",
+    "address": "Ve Lhotce 1045/3, 142 00 Praha 4, Česko",
+    "lat": 50.0196852,
+    "lng": 14.4328731,
+    "googleMapsUrl": "https://maps.google.com/?cid=1902137400908632314&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fc-tempo-praha-z-s-ChIJd5gQ.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-006"
+  },
+  {
+    "name": "Fun Arena",
+    "address": "Bartůňkova 1761/7, 149 00 Praha 4-Chodov, Česko",
+    "lat": 50.0304034,
+    "lng": 14.5047479,
+    "googleMapsUrl": "https://maps.google.com/?cid=8909940229179456631&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fun-arena-ChIJk6KG.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-007"
+  },
+  {
+    "name": "SK Motorlet - Sport Park Radlice",
+    "address": "Radlická 298/105, 150 00 Praha 5-Radlice, Česko",
+    "lat": 50.058177799999996,
+    "lng": 14.390682000000002,
+    "googleMapsUrl": "https://maps.google.com/?cid=12885552383118529725&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/sk-motorlet-sport-park-radlice-ChIJCS74.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-008"
+  },
+  {
+    "name": "Pražačka Football",
+    "address": "23, Nad Ohradou 2825, 130 00 Praha 3-Žižkov, Česko",
+    "lat": 50.092533499999995,
+    "lng": 14.4753149,
+    "googleMapsUrl": "https://maps.google.com/?cid=6312732225542290693&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/prazacka-football-ChIJ_Whl.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-009"
+  },
+  {
+    "name": "Sportovní areál Na Františku",
+    "address": "Kozí 18, 110 00 Praha 1-Staré Město, Česko",
+    "lat": 50.0922225,
+    "lng": 14.422645600000001,
+    "googleMapsUrl": "https://maps.google.com/?cid=8492821894182902170&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/sportovni-areal-na-frantisku-ChIJAyJa.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-010"
+  },
+  {
+    "name": "fk motorlet",
+    "address": "Butovická 35, 158 00 Praha-Praha 5, Česko",
+    "lat": 50.050793899999995,
+    "lng": 14.3624577,
+    "googleMapsUrl": "https://maps.google.com/?cid=5186597516303070651&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fk-motorlet-ChIJc-F-.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-011"
+  },
+  {
+    "name": "Fotbal Park Praha",
+    "address": "Formanská 446, Újezd u Průhonic, 149 00 Praha-Praha 415, Česko",
+    "lat": 50.0168173,
+    "lng": 14.530447899999999,
+    "googleMapsUrl": "https://maps.google.com/?cid=15695173640214450777&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fotbal-park-praha-ChIJVY8q.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-012"
+  },
+  {
+    "name": "FC Zličín",
+    "address": "U Zličínského hřiště 499/3, 155 21 Praha-Zličín, Česko",
+    "lat": 50.0587156,
+    "lng": 14.287293499999999,
+    "googleMapsUrl": "https://maps.google.com/?cid=7267971595949254744&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fc-zlicin-ChIJgw2N.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-001"
+  },
+  {
+    "name": "11teamsports Store Prague",
+    "address": "Ječná 547/15, Nové Město, 120 00 Praha-Praha 2, Česko",
+    "lat": 50.0758369,
+    "lng": 14.422999400000002,
+    "googleMapsUrl": "https://maps.google.com/?cid=13412719526100835283&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/11teamsports-store-prague-ChIJBafp.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-002"
+  },
+  {
+    "name": "FK Admira Praha",
+    "address": "46, Na Pecích 1044, 182 00 Praha 8, Česko",
+    "lat": 50.1289137,
+    "lng": 14.454436000000001,
+    "googleMapsUrl": "https://maps.google.com/?cid=16641447902757452689&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fk-admira-praha-ChIJ1VdU.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-003"
+  },
+  {
+    "name": "SK Prosek Praha",
+    "address": "Lovosická 559, 190 00 Praha 9-Střížkov, Česko",
+    "lat": 50.128832599999996,
+    "lng": 14.4993094,
+    "googleMapsUrl": "https://maps.google.com/?cid=17713160439024287381&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/sk-prosek-praha-ChIJefyh.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-004"
+  },
+  {
+    "name": "ABSOLUTE TEAMSPORT SPORTFOTBAL",
+    "address": "Voroněžská 174/28, 101 00 Praha 10-Vršovice, Česko",
+    "lat": 50.071604,
+    "lng": 14.4466825,
+    "googleMapsUrl": "https://maps.google.com/?cid=5510567470515279760&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/absolute-teamsport-sportfotbal-ChIJk0tN.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-005"
+  },
+  {
+    "name": "SK Ďáblice",
+    "address": "34, Kokořínská 400, 182 00 Praha-Ďáblice, Česko",
+    "lat": 50.1450436,
+    "lng": 14.4879592,
+    "googleMapsUrl": "https://maps.google.com/?cid=11613528690432353151&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/sk-dablice-ChIJF0kV.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-006"
+  },
+  {
+    "name": "Vrša Sportcentrum",
+    "address": "Technologická 956/2a, 148 00 Praha-Praha-Kunratice, Česko",
+    "lat": 50.0195878,
+    "lng": 14.498761099999998,
+    "googleMapsUrl": "https://maps.google.com/?cid=9145819639245234018&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/vrsa-sportcentrum-ChIJVVWV.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-007"
+  },
+  {
+    "name": "FC Slavoj Vyšehrad",
+    "address": "1, Mikuláše z Husi 1709, 140 00 Praha 4-Nusle, Česko",
+    "lat": 50.059810299999995,
+    "lng": 14.426225199999998,
+    "googleMapsUrl": "https://maps.google.com/?cid=14244389148480678095&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fc-slavoj-vysehrad-ChIJVdNA.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-008"
+  },
+  {
+    "name": "FK Dukla Praha",
+    "address": "Na Julisce 28/2, 160 00 Praha 6, Česko",
+    "lat": 50.110495099999994,
+    "lng": 14.3878048,
+    "googleMapsUrl": "https://maps.google.com/?cid=31908871885949716&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fk-dukla-praha-ChIJOTPK.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-009"
+  },
+  {
+    "name": "ČAFC Praha",
+    "address": "K vodě 3186, 106 00 Praha 10-Záběhlice, Česko",
+    "lat": 50.0510187,
+    "lng": 14.490414300000001,
+    "googleMapsUrl": "https://maps.google.com/?cid=13892527488045279388&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/cafc-praha-ChIJe9yo.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-010"
+  },
+  {
+    "name": "Sportovní klub Střešovice 1911",
+    "address": "62, Cukrovarnická 1071, 162 00 Praha 6-Střešovice, Česko",
+    "lat": 50.0947807,
+    "lng": 14.3700417,
+    "googleMapsUrl": "https://maps.google.com/?cid=7565255064339484600&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/sportovni-klub-stresovice-1911-ChIJf898.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-011"
+  },
+  {
+    "name": "Víceúčelové hřiště Habrová",
+    "address": "Habrová, 130 00 Praha 3, Česko",
+    "lat": 50.0886253,
+    "lng": 14.493197100000001,
+    "googleMapsUrl": "https://maps.google.com/?cid=10037390526274445136&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/viceucelove-hriste-habrova-ChIJx5wQ.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-012"
+  },
+  {
+    "name": "SK JUNIOR Praha 1960",
+    "address": "V Úžlabině 320/23, 100 00 Praha 10-Malešice, Česko",
+    "lat": 50.0805035,
+    "lng": 14.505110400000001,
+    "googleMapsUrl": "https://maps.google.com/?cid=15607525630795826572&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/sk-junior-praha-1960-ChIJGVEX.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-001"
+  },
+  {
+    "name": "FAČR, Fotbalová síň slávy",
+    "address": "Atletická 2474/8, 169 00 Praha 6-Strahov, Česko",
+    "lat": 50.079455900000006,
+    "lng": 14.3813534,
+    "googleMapsUrl": "https://maps.google.com/?cid=14370827205615570723&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/facr-fotbalova-sin-slavy-ChIJqVY7.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-002"
+  },
+  {
+    "name": "Stadion Evžena Rošického",
+    "address": "3, Diskařská 2120, 169 00 Praha 6-Břevnov, Česko",
+    "lat": 50.0804231,
+    "lng": 14.3836955,
+    "googleMapsUrl": "https://maps.google.com/?cid=875660611803110457&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/stadion-evzena-rosickeho-ChIJXYi5.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-003"
+  },
+  {
+    "name": "BB Arena Štěrboholy",
+    "address": "U školy 430, 102 00 Praha-Štěrboholy, Česko",
+    "lat": 50.070672099999996,
+    "lng": 14.5527321,
+    "googleMapsUrl": "https://maps.google.com/?cid=17207177273341865418&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/bb-arena-sterboholy-ChIJe176.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-004"
+  },
+  {
+    "name": "SK Modřany",
+    "address": "Komořanská 47, 143 00 Praha 12, Česko",
+    "lat": 49.99741960000001,
+    "lng": 14.4065015,
+    "googleMapsUrl": "https://maps.google.com/?cid=3978394025920271314&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/sk-modrany-ChIJb78B.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-005"
+  },
+  {
+    "name": "Sportovní centrum Hostivař",
+    "address": "Bruslařská 1132/10, 102 00 Praha 15-Hostivař, Česko",
+    "lat": 50.0506204,
+    "lng": 14.5480953,
+    "googleMapsUrl": "https://maps.google.com/?cid=11234535627682967622&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/sportovni-centrum-hostivar-ChIJ_T1S.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-006"
+  },
+  {
+    "name": "TJ Praga Praha",
+    "address": "986/ 190 03, Sokolovská 810/304, Vysočany, 190 00 Praha-Praha 9, Česko",
+    "lat": 50.108578699999995,
+    "lng": 14.496584299999999,
+    "googleMapsUrl": "https://maps.google.com/?cid=1382413787939835468&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/tj-praga-praha-ChIJVXfF.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-007"
+  },
+  {
+    "name": "Stadion Přátelství",
+    "address": "2, Běžecká 2407, 169 00 Praha 6-Břevnov, Česko",
+    "lat": 50.080357199999995,
+    "lng": 14.381191399999999,
+    "googleMapsUrl": "https://maps.google.com/?cid=13408169594903613865&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/stadion-pratelstvi-ChIJ41QY.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-008"
+  },
+  {
+    "name": "AC Sparta Praha - Fotbalové centrum mládeže",
+    "address": "Vaníčkova 2464, 169 00 Praha 6-Strahov, Česko",
+    "lat": 50.08045250000001,
+    "lng": 14.388752799999999,
+    "googleMapsUrl": "https://maps.google.com/?cid=10931983048075375291&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/ac-sparta-praha-fotbalove-centrum-mladeze-ChIJ6cyA.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-009"
+  },
+  {
+    "name": "Sk Hostivař",
+    "address": "36, Švehlova 1362, 102 00 Praha 15, Česko",
+    "lat": 50.0520998,
+    "lng": 14.520324599999999,
+    "googleMapsUrl": "https://maps.google.com/?cid=8232719803541089918&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/sk-hostivar-ChIJ8dRV.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-010"
+  },
+  {
+    "name": "Hřiště SK Újezd Praha 4",
+    "address": "Ujezd, 149 00 Újezd u Pruhonic-Praha 415, Česko",
+    "lat": 50.010332399999996,
+    "lng": 14.544792699999997,
+    "googleMapsUrl": "https://maps.google.com/?cid=4002632595390254571&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/hriste-sk-ujezd-praha-4-ChIJlZE5.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-011"
+  },
+  {
+    "name": "Sk Viktoria Štěrboholy",
+    "address": "Ústřední 26a, 102 00 Štěrboholy, Česko",
+    "lat": 50.071796199999994,
+    "lng": 14.553359799999999,
+    "googleMapsUrl": "https://maps.google.com/?cid=15085501562076486490&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/sk-viktoria-sterboholy-ChIJg8ZB.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-012"
+  },
+  {
+    "name": "FK Loko Praha",
+    "address": "U Průhonu 2-14, 170 00 Praha 7-Holešovice, Česko",
+    "lat": 50.105152999999994,
+    "lng": 14.444507399999999,
+    "googleMapsUrl": "https://maps.google.com/?cid=1226361550904104888&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fk-loko-praha-ChIJfVTb.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-001"
+  },
+  {
+    "name": "Sk Čechie Smíchov",
+    "address": "Smrčinská 3346/5, 150 00 Praha 5-Smíchov, Česko",
+    "lat": 50.0757179,
+    "lng": 14.3663397,
+    "googleMapsUrl": "https://maps.google.com/?cid=14598170499208303666&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/sk-cechie-smichov-ChIJNUbr.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-002"
+  },
+  {
+    "name": "Fotbaliště",
+    "address": "Burešova 1130/14, 182 00 Praha 8, Česko",
+    "lat": 50.131276,
+    "lng": 14.468343400000002,
+    "googleMapsUrl": "https://maps.google.com/?cid=3579146812168185163&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fotbaliste-ChIJYVSU.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-003"
+  },
+  {
+    "name": "Fotbalové hřiště",
+    "address": "V Ráji, 190 12 Praha-Dolní Počernice, Česko",
+    "lat": 50.087997699999995,
+    "lng": 14.5756506,
+    "googleMapsUrl": "https://maps.google.com/?cid=15944492958129397424&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fotbalove-hriste-ChIJl_9J.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-004"
+  },
+  {
+    "name": "Fotbalový stadion SC Olympia Radotín",
+    "address": "Ke Zděři 1111/21, 153 00 Praha 16, Česko",
+    "lat": 49.979390699999996,
+    "lng": 14.3559993,
+    "googleMapsUrl": "https://maps.google.com/?cid=11873030891209496624&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fotbalovy-stadion-sc-olympia-radotin-ChIJ47FH.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-005"
+  },
+  {
+    "name": "Fotbalové hřiště",
+    "address": "Před Mosty 1, 190 00 Praha 9-Hrdlořezy, Česko",
+    "lat": 50.0955842,
+    "lng": 14.5217516,
+    "googleMapsUrl": "https://maps.google.com/?cid=11380068245184054452&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fotbalove-hriste-ChIJ7ZEh.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-006"
+  },
+  {
+    "name": "Stadion Na Pecích",
+    "address": "Na Pecích, 182 00 Praha 8, Česko",
+    "lat": 50.129568199999994,
+    "lng": 14.4541508,
+    "googleMapsUrl": "https://maps.google.com/?cid=8592995504131073429&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/stadion-na-pecich-ChIJqV1x.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-007"
+  },
+  {
+    "name": "Fotbalové hřiště TJ Sokol Kbely",
+    "address": "4A, Železnobrodská 961, 197 00 Praha-Kbely, Česko",
+    "lat": 50.132606499999994,
+    "lng": 14.546189299999998,
+    "googleMapsUrl": "https://maps.google.com/?cid=2757958002046520108&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fotbalove-hriste-tj-sokol-kbely-ChIJ0Vaz.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-008"
+  },
+  {
+    "name": "Fotbalové hřiště",
+    "address": "Biskupcova 110/84, 130 00 Praha 3-Žižkov, Česko",
+    "lat": 50.091378899999995,
+    "lng": 14.484540899999999,
+    "googleMapsUrl": "https://maps.google.com/?cid=11380053033152365217&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fotbalove-hriste-ChIJzywP.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-009"
+  },
+  {
+    "name": "Fotbalové Hřiště",
+    "address": "148 00 Praha 11, Česko",
+    "lat": 50.0298805,
+    "lng": 14.483032199999998,
+    "googleMapsUrl": "https://maps.google.com/?cid=6705939389566922093&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fotbalove-hriste-ChIJPxd0.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-010"
+  },
+  {
+    "name": "MSM Football Academy",
+    "address": "2B, Jankovcova 1566, 170 00 Praha 7-Holešovice, Česko",
+    "lat": 50.102431499999994,
+    "lng": 14.456150799999998,
+    "googleMapsUrl": "https://maps.google.com/?cid=8194015442830329978&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/msm-football-academy-ChIJNW_s.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-011"
+  },
+  {
+    "name": "UMT Podvinný Mlýn",
+    "address": "Kovanecká, K Moravině 190 00, 190 00 Praha 9, Česko",
+    "lat": 50.109426899999995,
+    "lng": 14.4919867,
+    "googleMapsUrl": "https://maps.google.com/?cid=9828387364153248552&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/umt-podvinny-mlyn-ChIJFXc5.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-012"
+  },
+  {
+    "name": "Fotbalové hřiště FK Spoje Praha",
+    "address": "25, Na Balkáně 450, 130 00 Praha 3-Vysočany, Česko",
+    "lat": 50.096283,
+    "lng": 14.4917133,
+    "googleMapsUrl": "https://maps.google.com/?cid=11982321403871054310&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fotbalove-hriste-fk-spoje-praha-ChIJVzAV.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-001"
+  },
+  {
+    "name": "Sportoviště Klamovka",
+    "address": "Pod Lipkami 1416/2, 150 00 Praha 5, Česko",
+    "lat": 50.074090299999995,
+    "lng": 14.3802978,
+    "googleMapsUrl": "https://maps.google.com/?cid=16504938911579397863&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/sportoviste-klamovka-ChIJEXaI.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-002"
+  },
+  {
+    "name": "Fotbalové hřiště Vítkov",
+    "address": "Pražačka, 130 00 Praha 3-Žižkov, Česko",
+    "lat": 50.0894614,
+    "lng": 14.457258099999999,
+    "googleMapsUrl": "https://maps.google.com/?cid=7085521352106954667&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fotbalove-hriste-vitkov-ChIJOS1j.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-003"
+  },
+  {
+    "name": "Sportovní areál Masná",
+    "address": "14, Masná 977, Staré Město, 110 00 Praha-Praha 1, Česko",
+    "lat": 50.0891105,
+    "lng": 14.424620299999999,
+    "googleMapsUrl": "https://maps.google.com/?cid=984927326932596906&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/sportovni-areal-masna-ChIJEZyE.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-004"
+  },
+  {
+    "name": "VEŘEJNÉ SPORTOVNÍ HŘIŠTĚ",
+    "address": "10, Narcisová 5-9, 106 00 Praha 10, Česko",
+    "lat": 50.05954740000001,
+    "lng": 14.497714900000002,
+    "googleMapsUrl": "https://maps.google.com/?cid=2526844624776840106&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/verejne-sportovni-hriste-ChIJfYBn.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-005"
+  },
+  {
+    "name": "Fotbalová akademie Praha",
+    "address": "Lovosická 559, 190 00 Praha 9-Střížkov, Česko",
+    "lat": 50.128163699999995,
+    "lng": 14.4999086,
+    "googleMapsUrl": "https://maps.google.com/?cid=11173322316067059430&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fotbalova-akademie-praha-ChIJKU_T.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-006"
+  },
+  {
+    "name": "Sportovní areál Nad Přehradou",
+    "address": "Milánská 471, 109 00 Praha 15-Horní Měcholupy, Česko",
+    "lat": 50.0397706,
+    "lng": 14.550320099999999,
+    "googleMapsUrl": "https://maps.google.com/?cid=1992288142816221801&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/sportovni-areal-nad-prehradou-ChIJq1bI.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-007"
+  },
+  {
+    "name": "LITVI",
+    "address": "190 00 Praha 9, Česko",
+    "lat": 50.120289199999995,
+    "lng": 14.4875765,
+    "googleMapsUrl": "https://maps.google.com/?cid=13757731016295183872&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/litvi-ChIJF6hu.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-008"
+  },
+  {
+    "name": "FC PerfectLanD",
+    "address": "Ústřední 26a, 102 00 Praha-Štěrboholy, Česko",
+    "lat": 50.071142599999995,
+    "lng": 14.553645200000002,
+    "googleMapsUrl": "https://maps.google.com/?cid=15252345185367198518&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fc-perfectland-ChIJSQFg.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-009"
+  },
+  {
+    "name": "Zorb Football Prague",
+    "address": "ostrov Štvanice 170 00, 170 00 Praha 7, Česko",
+    "lat": 50.0960865,
+    "lng": 14.4431122,
+    "googleMapsUrl": "https://maps.google.com/?cid=13697229131825487657&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/zorb-football-prague-ChIJnQak.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-010"
+  },
+  {
+    "name": "Multifunkčí sportovní hřiště",
+    "address": "10, Praha, 106 00 Praha 10, Česko",
+    "lat": 50.0553503,
+    "lng": 14.508024899999999,
+    "googleMapsUrl": "https://maps.google.com/?cid=17549627253361364213&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/multifunkci-sportovni-hriste-ChIJL1ko.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-011"
+  },
+  {
+    "name": "Fotbalové hřiště",
+    "address": "Janáčkovo nábř. 41, 150 00 Praha 5-Smíchov, Česko",
+    "lat": 50.078674299999996,
+    "lng": 14.409095700000002,
+    "googleMapsUrl": "https://maps.google.com/?cid=3836259343647530151&g_mp=Cidnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLlNlYXJjaFRleHQQAhgEIAA",
+    "photoUrl": "https://pub-0573082c545e4de4892def84f4f6073f.r2.dev/venues/fotbalove-hriste-ChIJibJw.jpg",
+    "surface": [
+      "grass"
+    ],
+    "coverId": "cover-012"
+  }
+]

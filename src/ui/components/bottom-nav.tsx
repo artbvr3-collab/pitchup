@@ -8,7 +8,7 @@
  *          dropped when navigating to /map; ?date= defaults to today when
  *          navigating to /games).
  * LAYER: ui
- * DEPENDENCIES: next/navigation, next/link
+ * DEPENDENCIES: next/navigation, next/link, @phosphor-icons/react
  * CONSUMED BY: app/layout.tsx
  * INVARIANTS:
  *   - Hidden entirely on /welcome and /login.
@@ -23,69 +23,19 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import * as React from "react";
 
 import { cn } from "../lib/cn";
+import { Icon } from "./icon";
 
 interface Tab {
   readonly label: string;
   readonly href: string;
-  readonly icon: React.ReactNode;
+  /** Solar icon base slug; `-linear` (inactive) / `-bold-duotone` (active)
+   *  is appended at render to mimic the iOS outline→fill pattern. */
+  readonly iconName: string;
   readonly authOnly: boolean;
   /** Pathnames that mark this tab as active. */
   readonly activePrefix: string;
-}
-
-// SVG icon helpers — inline, no external lib dependency.
-function IconCalendar() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="3" y="4" width="18" height="18" rx="2" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-    </svg>
-  );
-}
-
-function IconList() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <line x1="8" y1="6" x2="21" y2="6" />
-      <line x1="8" y1="12" x2="21" y2="12" />
-      <line x1="8" y1="18" x2="21" y2="18" />
-      <line x1="3" y1="6" x2="3.01" y2="6" />
-      <line x1="3" y1="12" x2="3.01" y2="12" />
-      <line x1="3" y1="18" x2="3.01" y2="18" />
-    </svg>
-  );
-}
-
-function IconMap() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
-      <line x1="8" y1="2" x2="8" y2="18" />
-      <line x1="16" y1="6" x2="16" y2="22" />
-    </svg>
-  );
-}
-
-function IconChat() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
-  );
-}
-
-function IconPerson() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
-  );
 }
 
 /** Paths where the BottomNav is hidden entirely. `/admin` has its own
@@ -123,35 +73,35 @@ export function BottomNav({ isSignedIn }: BottomNavProps) {
     {
       label: "My matches",
       href: "/my-matches",
-      icon: <IconCalendar />,
+      iconName: "calendar",
       authOnly: true,
       activePrefix: "/my-matches",
     },
     {
       label: "Games",
       href: gamesHref,
-      icon: <IconList />,
+      iconName: "football",
       authOnly: false,
       activePrefix: "/games",
     },
     {
       label: "Map",
       href: mapHref,
-      icon: <IconMap />,
+      iconName: "map-point-wave",
       authOnly: false,
       activePrefix: "/map",
     },
     {
       label: "Chats",
       href: "/chats",
-      icon: <IconChat />,
+      iconName: "chat-round-dots",
       authOnly: true,
       activePrefix: "/chats",
     },
     {
       label: "Me",
       href: "/me",
-      icon: <IconPerson />,
+      iconName: "user-circle",
       authOnly: true,
       activePrefix: "/me",
     },
@@ -159,7 +109,7 @@ export function BottomNav({ isSignedIn }: BottomNavProps) {
 
   return (
     <nav
-      className="sticky bottom-0 z-40 flex h-14 w-full items-stretch border-t border-border bg-bg-base"
+      className="sticky bottom-0 z-40 flex h-14 w-full items-stretch bg-bg-base/90 shadow-[var(--shadow-nav)] backdrop-blur-md"
       aria-label="Main navigation"
     >
       {tabs.map((tab) => {
@@ -188,11 +138,14 @@ export function BottomNav({ isSignedIn }: BottomNavProps) {
           >
             <span
               className={cn(
-                "flex h-7 w-14 items-center justify-center rounded-full transition-colors",
-                isActive && "bg-lime",
+                "flex h-7 w-14 items-center justify-center rounded-full transition-all",
+                isActive && "bg-gradient-lime shadow-btn-lime",
               )}
             >
-              {tab.icon}
+              <Icon
+                name={`${tab.iconName}-${isActive ? "bold-duotone" : "linear"}`}
+                size={22}
+              />
             </span>
             <span>{tab.label}</span>
           </Link>

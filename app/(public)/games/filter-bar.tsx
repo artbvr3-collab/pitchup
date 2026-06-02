@@ -21,6 +21,7 @@
 import Link from "next/link";
 import * as React from "react";
 
+import { Icon } from "@/src/ui/components/icon";
 import { Input } from "@/src/ui/components/input";
 import { cn } from "@/src/ui/lib/cn";
 
@@ -51,14 +52,18 @@ export function FilterBar(props: FilterBarProps) {
 
   return (
     <div className="flex items-center gap-2 bg-bg-base px-4 py-3">
-      <div className="flex-1">
+      <div className="relative flex-1">
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2">
+          <Icon name="magnifer-linear" size={18} className="text-text-muted" />
+        </span>
         <Input
           type="search"
           inputMode="search"
-          placeholder="🔍 Search venue..."
+          placeholder="Search venue..."
           value={value}
           onChange={(e) => handleChange(e.target.value)}
           aria-label="Search venue"
+          className="pl-9"
         />
       </div>
       <button
@@ -66,10 +71,10 @@ export function FilterBar(props: FilterBarProps) {
         onClick={props.onOpenFilters}
         aria-label="More filters"
         className={cn(
-          "relative inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[10px] border border-border bg-bg-card text-[18px] text-text-primary",
+          "relative inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[10px] border border-border bg-bg-card text-green-dark",
         )}
       >
-        ⚙
+        <Icon name="tuning-2-bold-duotone" size={20} />
         {props.hasActiveFilters && (
           <span
             aria-hidden="true"
@@ -79,7 +84,7 @@ export function FilterBar(props: FilterBarProps) {
       </button>
       <Link
         href="/matches/new"
-        className="inline-flex h-[42px] shrink-0 items-center justify-center rounded-[10px] bg-green-dark px-3 text-[13px] font-semibold text-text-inverted shadow-btn"
+        className="inline-flex h-[42px] shrink-0 items-center justify-center rounded-[10px] bg-gradient-green px-3 text-[13px] font-semibold text-text-inverted shadow-btn"
       >
         + New match
       </Link>

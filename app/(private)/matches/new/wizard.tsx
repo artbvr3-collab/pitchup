@@ -27,7 +27,7 @@
  */
 "use client";
 
-import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { CaretLeft, CaretRight, MagnifyingGlass, X } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
@@ -571,9 +571,9 @@ function Step1({
       <section>
         <FieldLabel>Venue</FieldLabel>
         <div className="relative">
-          <Search
+          <MagnifyingGlass
             size={16}
-            strokeWidth={2.5}
+            weight="bold"
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary"
           />
           <Input
@@ -689,7 +689,7 @@ function CalendarGrid({
             aria-label="Previous month"
             className="flex h-7 w-7 items-center justify-center rounded-[8px] border border-border bg-bg-card text-text-secondary disabled:cursor-not-allowed disabled:opacity-35"
           >
-            <ChevronLeft size={14} strokeWidth={2.5} />
+            <CaretLeft size={14} weight="bold" />
           </button>
           <button
             type="button"
@@ -698,7 +698,7 @@ function CalendarGrid({
             aria-label="Next month"
             className="flex h-7 w-7 items-center justify-center rounded-[8px] border border-border bg-bg-card text-text-secondary disabled:cursor-not-allowed disabled:opacity-35"
           >
-            <ChevronRight size={14} strokeWidth={2.5} />
+            <CaretRight size={14} weight="bold" />
           </button>
         </div>
       </div>
@@ -1014,7 +1014,7 @@ function CrewInput({
             aria-label={`Remove ${name}`}
             className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-lime-text/15"
           >
-            <X size={10} strokeWidth={3} />
+            <X size={10} weight="bold" />
           </button>
         </span>
       ))}

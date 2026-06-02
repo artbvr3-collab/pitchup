@@ -6,11 +6,14 @@
  *          (create) / PATCHes (update) to `/api/admin/venues`, and
  *          `router.refresh()`es on success. The deactivation guard is mirrored
  *          here (toggle disabled + hint when the venue has upcoming matches);
- *          the API re-checks (409 backstop).
+ *          the API re-checks (409 backstop). The Photo field uploads to R2 via
+ *          `POST /api/admin/venues/photo` (client-side downscale first) and
+ *          falls back to a pasted URL; a Maps-URL → lat/lng one-tap helper fills
+ *          the coordinate fields.
  * LAYER: interfaces (client island)
  * DEPENDENCIES: next/navigation, src/ui/components/{button, input, switch,
  *               sheet}, src/match_lifecycle/domain/covers,
- *               src/ui/lib/cover-style
+ *               src/ui/lib/cover-style, POST /api/admin/venues/photo
  * CONSUMED BY: app/admin/venues/page.tsx
  * INVARIANTS:
  *   - One modal for both [+ Add venue] and [Edit] (spec — no inline cell edit).
@@ -21,12 +24,15 @@
  *     is shown; the toggle can't be flipped so Save can't deactivate it.
  *   - Surface must be a non-empty subset of {grass, hard} (Save disabled
  *     otherwise) — backend Zod re-checks.
+ *   - Photo upload is best-effort: a 503 `photo_storage_unconfigured` (R2 unset)
+ *     surfaces a "paste a URL instead" hint rather than blocking Save — the
+ *     `photoUrl` string is what's persisted either way.
  * RELATED DOCS: docs/spec/pitchup-spec-personal.md → "/admin/venues".
  */
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { COVER_IDS } from "@/src/match_lifecycle/domain/covers";
 import { Button } from "@/src/ui/components/button";
@@ -60,6 +66,59 @@ const ERROR_MESSAGES: Record<string, string> = {
   admin_required: "You no longer have admin rights.",
   forbidden: "You no longer have admin rights.",
 };
+
+const UPLOAD_ERRORS: Record<string, string> = {
+  photo_storage_unconfigured: "Uploads aren't set up yet — paste a URL below instead.",
+  photo_invalid_type: "Use a JPG, PNG, or WebP image.",
+  photo_too_large: "Image is too large (max 5 MB).",
+  photo_missing: "No file selected.",
+  admin_required: "You no longer have admin rights.",
+  forbidden: "You no longer have admin rights.",
+};
+
+/**
+ * Pull lat/lng out of a pasted Google Maps URL so the admin doesn't hand-type
+ * coordinates. Handles the `?query=`/`?q=lat,lng` form (what our importer
+ * writes) and the `@lat,lng` map-centre form. Returns null if neither matches.
+ */
+function parseLatLng(url: string): { lat: number; lng: number } | null {
+  const param = url.match(/[?&](?:query|q)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+  if (param) return { lat: Number(param[1]), lng: Number(param[2]) };
+  const at = url.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+  if (at) return { lat: Number(at[1]), lng: Number(at[2]) };
+  return null;
+}
+
+/**
+ * Downscale (max 1280px long edge) + re-encode to JPEG client-side before
+ * upload, so phone photos don't ship as multi-MB originals and the server gets
+ * a predictable type. Falls back to the raw file if canvas decoding fails.
+ */
+async function prepareUpload(file: File): Promise<Blob> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const maxDim = 1280;
+    const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      bitmap.close();
+      return file;
+    }
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((b) => resolve(b), "image/jpeg", 0.85),
+    );
+    return blob ?? file;
+  } catch {
+    return file;
+  }
+}
 
 interface FormState {
   name: string;
@@ -115,17 +174,22 @@ export function AdminVenuesTable({ rows }: { readonly rows: readonly AdminVenueR
   const [form, setForm] = useState<FormState>(blankForm);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function openAdd(): void {
     setModal({ mode: "add" });
     setForm(blankForm());
     setError(null);
+    setUploadError(null);
   }
 
   function openEdit(venue: AdminVenueRow): void {
     setModal({ mode: "edit", venue });
     setForm(formFromVenue(venue));
     setError(null);
+    setUploadError(null);
   }
 
   function patch(partial: Partial<FormState>): void {
@@ -207,6 +271,34 @@ export function AdminVenuesTable({ rows }: { readonly rows: readonly AdminVenueR
       setPending(false);
     }
   }
+
+  async function onPickFile(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // let the same file be re-picked after an error
+    if (!file) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const blob = await prepareUpload(file);
+      const fd = new FormData();
+      fd.append("photo", blob, "venue.jpg");
+      const res = await fetch("/api/admin/venues/photo", { method: "POST", body: fd });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { code?: string };
+        setUploadError(UPLOAD_ERRORS[data.code ?? ""] ?? "Upload failed. Try again.");
+        return;
+      }
+      const { url } = (await res.json()) as { url: string };
+      patch({ photoUrl: url });
+    } catch {
+      setUploadError("Upload failed. Try again.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  // Offer a one-tap "use these coordinates" when the pasted Maps URL has them.
+  const parsedCoords = parseLatLng(form.googleMapsUrl);
 
   return (
     <>
@@ -414,16 +506,89 @@ export function AdminVenuesTable({ rows }: { readonly rows: readonly AdminVenueR
                 onChange={(e) => patch({ googleMapsUrl: e.target.value })}
                 placeholder="https://maps.google.com/..."
               />
+              {parsedCoords && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    patch({
+                      lat: String(parsedCoords.lat),
+                      lng: String(parsedCoords.lng),
+                    })
+                  }
+                  className="mt-1 self-start text-[12px] font-medium text-green-dark underline"
+                >
+                  Use coordinates from this link ({parsedCoords.lat.toFixed(4)},{" "}
+                  {parsedCoords.lng.toFixed(4)})
+                </button>
+              )}
             </Field>
 
-            <Field label="Photo URL">
-              <Input
-                type="url"
-                value={form.photoUrl}
-                onChange={(e) => patch({ photoUrl: e.target.value })}
-                placeholder="https://example.com/venue.jpg"
-              />
-            </Field>
+            <div className="flex flex-col gap-1">
+              <span className="text-[12px] font-medium text-text-secondary">Photo</span>
+              <div className="flex flex-col gap-2">
+                {form.photoUrl.trim() !== "" ? (
+                  <div className="relative w-fit">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- admin-only internal preview; remote host varies, no next/image config */}
+                    <img
+                      src={form.photoUrl}
+                      alt="Venue"
+                      className="h-28 w-44 rounded-lg border border-border object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => patch({ photoUrl: "" })}
+                      className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-text-primary text-[13px] leading-none text-text-inverted shadow"
+                      aria-label="Remove photo"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex h-28 w-44 items-center justify-center rounded-lg border-[1.5px] border-dashed border-border text-[12px] text-text-muted">
+                    No photo
+                  </div>
+                )}
+
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="h-9 rounded-lg border-[1.5px] border-border px-3 text-[13px] font-medium text-text-primary transition-colors hover:bg-bg-surface disabled:opacity-50"
+                  >
+                    {uploading
+                      ? "Uploading…"
+                      : form.photoUrl.trim() !== ""
+                        ? "Replace photo"
+                        : "Upload photo"}
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={onPickFile}
+                  />
+                </div>
+
+                {uploadError && (
+                  <p className="text-[12px] text-destructive">{uploadError}</p>
+                )}
+
+                <details className="text-[12px]">
+                  <summary className="cursor-pointer text-text-muted">
+                    or paste a URL
+                  </summary>
+                  <Input
+                    type="url"
+                    value={form.photoUrl}
+                    onChange={(e) => patch({ photoUrl: e.target.value })}
+                    placeholder="https://example.com/venue.jpg"
+                    className="mt-1"
+                  />
+                </details>
+              </div>
+            </div>
 
             <div className="flex items-center justify-between rounded-lg border-[1.5px] border-border px-3 py-2">
               <div className="min-w-0">

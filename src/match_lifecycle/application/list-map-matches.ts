@@ -37,7 +37,7 @@ export interface MapMatchView {
   readonly fieldBooked: boolean;
   readonly price: number;
   readonly coverId: string;
-  readonly venue: Pick<Venue, "id" | "name" | "address" | "lat" | "lng">;
+  readonly venue: Pick<Venue, "id" | "name" | "address" | "lat" | "lng" | "photoUrl">;
   readonly slots: SlotInfo;
   readonly status: MatchStatus;
 }
@@ -98,6 +98,7 @@ export class ListMapMatchesService {
             address: match.venue.address,
             lat: match.venue.lat,
             lng: match.venue.lng,
+            photoUrl: match.venue.photoUrl,
           },
           slots,
           status,

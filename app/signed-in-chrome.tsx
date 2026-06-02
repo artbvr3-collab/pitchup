@@ -47,6 +47,8 @@ import {
 } from "@/src/ui/lib/browser-notifications";
 import { PollingHttpError, usePolling } from "@/src/ui/hooks/use-polling";
 
+import { Icon } from "@/src/ui/components/icon";
+
 import { UpdatesPanel } from "./updates-panel";
 
 /** Routes where the signed-in TopBar shows and the global poll runs. */
@@ -144,9 +146,10 @@ export function SignedInChrome() {
           type="button"
           onClick={openPanel}
           aria-label="Updates"
-          className="relative -mr-1 flex h-9 w-9 items-center justify-center rounded-full text-[20px]"
+          className="relative -mr-1 flex h-9 w-9 items-center justify-center rounded-full"
         >
-          <span aria-hidden>🔔</span>
+          <Icon name="bell-bold-duotone" size={24} className="text-green-dark" aria-hidden />
+
           {hasUnread && (
             <span
               aria-hidden

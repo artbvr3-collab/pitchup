@@ -39,6 +39,26 @@ const EnvSchema = z.object({
   //     is server-only); declared here for startup validation + .env.example.
   ABLY_API_KEY: z.string().optional(),
   NEXT_PUBLIC_ABLY_SUBSCRIBE_KEY: z.string().optional(),
+  // Dev-only auth bypass. When set AND NODE_ENV !== "production", the /login
+  // page renders a "Dev login" button that signs the holder in as the user
+  // whose `googleSub` equals this value. Hard-gated in auth-config.ts: the
+  // Credentials provider isn't even instantiated in production builds.
+  DEV_LOGIN_GOOGLE_SUB: z.string().optional(),
+  // Venue photo storage (Cloudflare R2, S3-compatible) — all optional. Absent
+  // → `isPhotoStorageConfigured()` is false, the admin upload route returns 503
+  // `photo_storage_unconfigured`, and the admin can still paste a Photo URL by
+  // hand. Validated as a group in src/shared/storage/r2.ts (not here — they're
+  // optional to boot, same convention as Resend/Ably). See that module.
+  //   - R2_ACCOUNT_ID: Cloudflare account id (builds the S3 endpoint host).
+  //   - R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY: an R2 API token's credentials.
+  //   - R2_BUCKET: target bucket name (e.g. "pitchup-venues").
+  //   - R2_PUBLIC_BASE_URL: public origin the bucket is served from (r2.dev URL
+  //     or a custom domain) — the stored `photoUrl` is `${base}/${key}`.
+  R2_ACCOUNT_ID: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_BUCKET: z.string().optional(),
+  R2_PUBLIC_BASE_URL: z.string().url().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

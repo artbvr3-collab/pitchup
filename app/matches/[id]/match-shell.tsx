@@ -63,6 +63,7 @@ export interface MatchShellProps {
     readonly name: string;
     readonly address: string;
     readonly googleMapsUrl: string | null;
+    readonly photoUrl: string | null;
   };
   readonly match: {
     readonly id: string;
@@ -261,6 +262,7 @@ export function MatchShell(props: MatchShellProps) {
 
       <MatchHero
         coverId={props.match.coverId}
+        photoUrl={props.venue.photoUrl}
         venueName={props.venue.name}
         venueAddress={props.venue.address}
         googleMapsUrl={props.venue.googleMapsUrl}

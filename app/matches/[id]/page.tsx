@@ -122,6 +122,7 @@ export default async function MatchPage(props: PageProps) {
         name: venue.name,
         address: venue.address,
         googleMapsUrl: venue.googleMapsUrl,
+        photoUrl: venue.photoUrl,
       }}
       match={{
         id: match.id,
