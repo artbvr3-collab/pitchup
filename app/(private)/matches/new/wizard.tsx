@@ -28,6 +28,7 @@
 "use client";
 
 import { CaretLeft, CaretRight, MagnifyingGlass, X } from "@phosphor-icons/react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 
@@ -42,6 +43,14 @@ import { cn } from "@/src/ui/lib/cn";
 import { coverBackground } from "@/src/ui/lib/cover-style";
 
 import type { VenueView } from "@/src/match_lifecycle/application/list-venues-service";
+
+// Map mode of the venue picker. Lazy + client-only: maplibre-gl (heavy, touches
+// WebGL) must stay out of the wizard's first-load bundle and never run on the
+// server. `.then((m) => m.VenueMapPicker)` because it's a named export.
+const VenueMapPicker = dynamic(
+  () => import("./venue-map-picker").then((m) => m.VenueMapPicker),
+  { ssr: false, loading: () => <div className="h-[280px] animate-pulse rounded-card bg-bg-card" /> },
+);
 
 // ────────── constants ──────────
 const HORIZON_DAYS = 20; // inclusive: today..today+20
@@ -508,6 +517,7 @@ function Step1({
   // ── Venue combobox: list stays collapsed until the field is focused /
   //    typed into; once a venue is chosen we show a compact card + "Change". ──
   const [venueOpen, setVenueOpen] = React.useState(false);
+  const [venueMode, setVenueMode] = React.useState<"list" | "map">("list");
   const venueComboRef = React.useRef<HTMLDivElement>(null);
   const venueInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -648,53 +658,77 @@ function Step1({
             </span>
           </button>
         ) : (
-          <div ref={venueComboRef} className="relative">
-            <div className="relative">
-              <MagnifyingGlass
-                size={16}
-                weight="bold"
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary"
-              />
-              <Input
-                ref={venueInputRef}
-                type="search"
-                placeholder="Search venue…"
-                value={state.venueSearch}
-                onFocus={() => setVenueOpen(true)}
-                onChange={(e) => {
-                  const venueSearch = e.target.value;
-                  setState((s) => ({ ...s, venueSearch }));
-                  setVenueOpen(true);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    setVenueOpen(false);
-                    e.currentTarget.blur();
-                  }
-                }}
-                className="pl-9"
-              />
+          <>
+            {/* List / Map are two equal ways to pick the venue. */}
+            <div
+              role="group"
+              aria-label="Venue picker mode"
+              className="mb-2 flex gap-1.5"
+            >
+              <Chip active={venueMode === "list"} onClick={() => setVenueMode("list")}>
+                List
+              </Chip>
+              <Chip active={venueMode === "map"} onClick={() => setVenueMode("map")}>
+                Map
+              </Chip>
             </div>
-            {venueOpen && (
-              <div className="absolute left-0 right-0 top-full z-20 mt-1.5 max-h-[300px] overflow-y-auto rounded-[14px] border border-border bg-bg-base p-1.5 shadow-card">
-                <div className="flex flex-col gap-1.5">
-                  {filteredVenues.map((v) => (
-                    <VenueItem
-                      key={v.id}
-                      venue={v}
-                      selected={state.venueId === v.id}
-                      onSelect={() => selectVenue(v)}
-                    />
-                  ))}
-                  {filteredVenues.length === 0 && (
-                    <p className="px-2 py-3 text-[13px] text-text-secondary">
-                      No venues match &ldquo;{state.venueSearch}&rdquo;.
-                    </p>
-                  )}
+
+            {venueMode === "map" ? (
+              <VenueMapPicker
+                venues={venues}
+                selectedId={state.venueId}
+                onSelect={selectVenue}
+              />
+            ) : (
+              <div ref={venueComboRef} className="relative">
+                <div className="relative">
+                  <MagnifyingGlass
+                    size={16}
+                    weight="bold"
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary"
+                  />
+                  <Input
+                    ref={venueInputRef}
+                    type="search"
+                    placeholder="Search venue…"
+                    value={state.venueSearch}
+                    onFocus={() => setVenueOpen(true)}
+                    onChange={(e) => {
+                      const venueSearch = e.target.value;
+                      setState((s) => ({ ...s, venueSearch }));
+                      setVenueOpen(true);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") {
+                        setVenueOpen(false);
+                        e.currentTarget.blur();
+                      }
+                    }}
+                    className="pl-9"
+                  />
                 </div>
+                {venueOpen && (
+                  <div className="absolute left-0 right-0 top-full z-20 mt-1.5 max-h-[300px] overflow-y-auto rounded-[14px] border border-border bg-bg-base p-1.5 shadow-card">
+                    <div className="flex flex-col gap-1.5">
+                      {filteredVenues.map((v) => (
+                        <VenueItem
+                          key={v.id}
+                          venue={v}
+                          selected={state.venueId === v.id}
+                          onSelect={() => selectVenue(v)}
+                        />
+                      ))}
+                      {filteredVenues.length === 0 && (
+                        <p className="px-2 py-3 text-[13px] text-text-secondary">
+                          No venues match &ldquo;{state.venueSearch}&rdquo;.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
-          </div>
+          </>
         )}
 
         <p className="mt-1.5 text-[12px] text-text-secondary">
