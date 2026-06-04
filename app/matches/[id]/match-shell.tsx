@@ -241,7 +241,7 @@ export function MatchShell(props: MatchShellProps) {
   });
 
   return (
-    <main className="mx-auto flex max-w-[375px] flex-col gap-4 pb-12">
+    <main className="mx-auto flex max-w-[375px] flex-col gap-4 px-4 pb-12">
       <div className="flex h-11 items-center justify-between">
         <button
           type="button"
@@ -314,7 +314,25 @@ export function MatchShell(props: MatchShellProps) {
           matchId={props.matchId}
           matchStatus={state.status}
           onMessageSent={(message: MatchStateMessage) =>
-            setState((prev) => mergePollPayload(prev, mergeOneMessage(prev, message)))
+            setState((prev) => {
+              // The composer posts with `author: null` (it has no User
+              // snapshot). Resolve the sender from the lineup we already hold
+              // so the optimistic bubble shows the viewer's name + avatar
+              // immediately, instead of flashing `[Removed user]` until the
+              // next poll. Polling/realtime reconcile to the authoritative
+              // author by id either way.
+              const withAuthor =
+                message.author === null
+                  ? {
+                      ...message,
+                      author: resolveAuthorFromLineup(
+                        prev.lineup,
+                        props.viewerId ?? "",
+                      ),
+                    }
+                  : message;
+              return mergePollPayload(prev, mergeOneMessage(prev, withAuthor));
+            })
           }
         />
       )}

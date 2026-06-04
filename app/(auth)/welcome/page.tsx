@@ -63,6 +63,7 @@ export default async function WelcomePage({ searchParams }: WelcomePageProps) {
               alt=""
               width={88}
               height={88}
+              referrerPolicy="no-referrer"
               className="h-[88px] w-[88px] rounded-full border border-border bg-bg-card object-cover"
             />
           ) : (

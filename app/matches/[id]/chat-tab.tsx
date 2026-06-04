@@ -171,28 +171,38 @@ function MessageRow({
   };
 
   return (
-    <div className="flex gap-2">
+    <div className={cn("flex items-end gap-2", isOwn && "flex-row-reverse")}>
+      <Avatar author={author} />
       <div
         className={cn(
-          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-text-inverted",
-          author.removed ? "bg-text-muted" : "bg-green-dark",
+          "flex max-w-[78%] flex-col",
+          isOwn ? "items-end" : "items-start",
         )}
       >
-        {author.initials}
-      </div>
-      <div className="flex-1">
-        <div className="flex items-baseline gap-2">
-          <span className="text-sm font-semibold">{author.name}</span>
-          {isOwn ? (
-            <span className="text-[10px] text-text-muted">you</span>
-          ) : null}
-          <span className="text-xs text-text-muted">{time}</span>
+        <div className="mb-0.5 flex items-baseline gap-2 px-1">
+          {!isOwn && (
+            <span className="text-xs font-semibold text-text-primary">
+              {author.name}
+            </span>
+          )}
+          <span className="text-[10px] text-text-muted">{time}</span>
         </div>
-        {deleted ? (
-          <p className="text-sm italic text-text-muted">[Message deleted]</p>
-        ) : (
-          <p className="whitespace-pre-wrap text-sm">{message.text}</p>
-        )}
+        <div
+          className={cn(
+            "rounded-2xl px-3 py-2 text-sm",
+            isOwn
+              ? "rounded-br-sm bg-green-dark text-text-inverted"
+              : "rounded-bl-sm bg-bg-card text-text-primary",
+          )}
+        >
+          {deleted ? (
+            <span className="italic opacity-70">[Message deleted]</span>
+          ) : (
+            <span className="whitespace-pre-wrap break-words">
+              {message.text}
+            </span>
+          )}
+        </div>
       </div>
       {isCaptain && !deleted && (
         <button
@@ -200,11 +210,37 @@ function MessageRow({
           onClick={handleDelete}
           disabled={busy}
           title="Delete message"
-          className="text-xs text-destructive opacity-70 hover:opacity-100"
+          className="self-center text-xs text-destructive opacity-70 hover:opacity-100"
         >
           ✕
         </button>
       )}
+    </div>
+  );
+}
+
+function Avatar({ author }: { author: ReturnType<typeof resolveAuthor> }) {
+  if (author.avatarUrl) {
+    return (
+      // Google CDN URL. `referrerPolicy="no-referrer"` is required — Google
+      // serves 429/403 for avatar fetches that carry a Referer header.
+      // eslint-disable-next-line @next/next/no-img-element -- Google CDN URL, not Next-routed
+      <img
+        src={author.avatarUrl}
+        alt={author.name}
+        referrerPolicy="no-referrer"
+        className="h-8 w-8 shrink-0 rounded-full border border-border bg-bg-card object-cover"
+      />
+    );
+  }
+  return (
+    <div
+      className={cn(
+        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-text-inverted",
+        author.removed ? "bg-text-muted" : "bg-green-dark",
+      )}
+    >
+      {author.initials}
     </div>
   );
 }
@@ -261,11 +297,20 @@ function Composer({
         e.preventDefault();
         void submit();
       }}
-      className="flex items-end gap-2"
+      className="flex items-stretch gap-2"
     >
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          // Enter sends; Shift+Enter inserts a newline (standard chat UX).
+          // `isComposing` guards IME input (e.g. Cyrillic/CJK candidates) so
+          // committing a candidate with Enter doesn't fire a send.
+          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            if (!busy) void submit();
+          }
+        }}
         placeholder="Type a message…"
         maxLength={2000}
         rows={2}
@@ -276,7 +321,7 @@ function Composer({
         variant="primary"
         size="md"
         disabled={busy || text.trim().length === 0}
-        className="w-auto px-4"
+        className="h-auto w-auto self-stretch px-4"
       >
         Send
       </Button>
@@ -287,11 +332,13 @@ function Composer({
 function resolveAuthor(author: MatchStateMessageAuthor | null): {
   name: string;
   initials: string;
+  avatarUrl: string | null;
   removed: boolean;
 } {
-  if (!author) return { name: "[Removed user]", initials: "?", removed: true };
-  if (author.banned)
-    return { name: "[Removed user]", initials: "?", removed: true };
+  // Null (soft-deleted) and banned authors both collapse to `[Removed user]`
+  // with no avatar (spec §220).
+  if (!author || author.banned)
+    return { name: "[Removed user]", initials: "?", avatarUrl: null, removed: true };
   const parts = author.name.trim().split(/\s+/).filter(Boolean);
   const initials =
     parts.length === 0
@@ -299,5 +346,10 @@ function resolveAuthor(author: MatchStateMessageAuthor | null): {
       : parts.length === 1
         ? parts[0]!.slice(0, 2).toUpperCase()
         : (parts[0]![0]! + parts[1]![0]!).toUpperCase();
-  return { name: author.name, initials, removed: false };
+  return {
+    name: author.name,
+    initials,
+    avatarUrl: author.avatar_url.length > 0 ? author.avatar_url : null,
+    removed: false,
+  };
 }
