@@ -27,12 +27,33 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: "PITCHUP",
   description: "Pickup football matchmaking",
+  applicationName: "PITCHUP",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  // iOS standalone: launch from the home screen without Safari chrome.
+  // Next emits the modern `mobile-web-app-capable` (iOS 16.4+); we add the
+  // legacy `apple-mobile-web-app-capable` via `other` for older iPhones.
+  appleWebApp: {
+    capable: true,
+    title: "PITCHUP",
+    statusBarStyle: "default",
+  },
+  other: {
+    "apple-mobile-web-app-capable": "yes",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: "#f5f0e8",
 };
 
 export default async function RootLayout({
