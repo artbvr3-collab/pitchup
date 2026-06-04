@@ -15,6 +15,7 @@ import { BottomNav } from "@/src/ui/components/bottom-nav";
 
 import { AppProviders } from "./app-providers";
 import { SignedInChrome } from "./signed-in-chrome";
+import { SplashScreen } from "./splash-screen";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -49,6 +50,7 @@ export default async function RootLayout({
     <html lang="en" className={plusJakartaSans.variable}>
       <body className="bg-bg-surface font-sans text-[15px] text-text-primary">
         <AppProviders>
+          <SplashScreen />
           <div className="mx-auto flex min-h-dvh max-w-screen flex-col bg-bg-base">
             {session && <SignedInChrome />}
             <div className="flex-1">{children}</div>

@@ -76,6 +76,79 @@ body {
   line-height: 1.5;
 }
 
+/* ── Splash screen ── */
+/* The ball FALLS in from above and decay-bounces to rest (drop & settle).
+   Three synced tracks on separate elements so they never fight each other:
+   bounce = vertical position, squish = squash/stretch, shadow = ground contact.
+   Each plays ONCE (forwards) — the decay reads as a finished motion, not a loop.
+   Timing functions are per-keyframe: gravity-in on the way down, ease-out up. */
+
+/* Outer wrapper: pure Y-axis travel (gravity physics) */
+@keyframes pitchup-bounce {
+  0%   { transform: translateY(-150px); animation-timing-function: cubic-bezier(0.6, 0.04, 0.98, 0.34); } /* fall, accelerating */
+  16%  { transform: translateY(0);      animation-timing-function: cubic-bezier(0.2, 0.5, 0.35, 1);     } /* 1st impact → rise */
+  30%  { transform: translateY(-72px);  animation-timing-function: cubic-bezier(0.6, 0.04, 0.98, 0.34); }
+  44%  { transform: translateY(0);      animation-timing-function: cubic-bezier(0.2, 0.5, 0.35, 1);     }
+  56%  { transform: translateY(-32px);  animation-timing-function: cubic-bezier(0.6, 0.04, 0.98, 0.34); }
+  67%  { transform: translateY(0);      animation-timing-function: cubic-bezier(0.2, 0.5, 0.35, 1);     }
+  76%  { transform: translateY(-12px);  animation-timing-function: cubic-bezier(0.6, 0.04, 0.98, 0.34); }
+  84%  { transform: translateY(0);      animation-timing-function: cubic-bezier(0.2, 0.5, 0.35, 1);     }
+  90%  { transform: translateY(-4px);   animation-timing-function: cubic-bezier(0.6, 0.04, 0.98, 0.34); }
+  95%  { transform: translateY(0); }
+  100% { transform: translateY(0); }
+}
+
+/* Inner wrapper: squash & stretch, anchored at bottom edge. Stretches thin while
+   falling, splats wide on each impact, decaying with the bounce. */
+@keyframes pitchup-squish {
+  0%   { transform: scaleX(1) scaleY(1);       animation-timing-function: cubic-bezier(0.6, 0.04, 0.98, 0.34); }
+  11%  { transform: scaleX(0.93) scaleY(1.09); } /* stretched mid-fall */
+  16%  { transform: scaleX(1.25) scaleY(0.78); animation-timing-function: cubic-bezier(0.2, 0.6, 0.3, 1); } /* big splat */
+  23%  { transform: scaleX(1) scaleY(1); }
+  40%  { transform: scaleX(0.97) scaleY(1.04); } /* small stretch before 2nd impact */
+  44%  { transform: scaleX(1.14) scaleY(0.88); animation-timing-function: cubic-bezier(0.2, 0.6, 0.3, 1); }
+  50%  { transform: scaleX(1) scaleY(1); }
+  67%  { transform: scaleX(1.08) scaleY(0.93); animation-timing-function: cubic-bezier(0.2, 0.6, 0.3, 1); }
+  73%  { transform: scaleX(1) scaleY(1); }
+  84%  { transform: scaleX(1.04) scaleY(0.97); }
+  88%  { transform: scaleX(1) scaleY(1); }
+  100% { transform: scaleX(1) scaleY(1); }
+}
+
+/* Ground shadow: biggest + darkest at each impact, tiny + faint at each apex. */
+@keyframes pitchup-shadow {
+  0%   { transform: scale(0.2);  opacity: 0.04; animation-timing-function: cubic-bezier(0.6, 0.04, 0.98, 0.34); }
+  16%  { transform: scale(1.06); opacity: 0.34; animation-timing-function: cubic-bezier(0.2, 0.5, 0.35, 1); }
+  23%  { transform: scale(1);    opacity: 0.3;  }
+  30%  { transform: scale(0.55); opacity: 0.12; animation-timing-function: cubic-bezier(0.6, 0.04, 0.98, 0.34); }
+  44%  { transform: scale(1);    opacity: 0.3;  }
+  56%  { transform: scale(0.74); opacity: 0.18; animation-timing-function: cubic-bezier(0.6, 0.04, 0.98, 0.34); }
+  67%  { transform: scale(1);    opacity: 0.3;  }
+  76%  { transform: scale(0.9);  opacity: 0.24; }
+  84%  { transform: scale(1);    opacity: 0.3;  }
+  100% { transform: scale(1);    opacity: 0.3;  }
+}
+
+/* Wordmark drifts up and tightens its tracking as the ball settles. */
+@keyframes pitchup-word {
+  0%   { opacity: 0;   transform: translateY(10px); letter-spacing: 0.32em; }
+  100% { opacity: 0.7; transform: translateY(0);    letter-spacing: 0.18em; }
+}
+
+.splash-bounce { animation: pitchup-bounce 1.8s forwards; transform-origin: center bottom; will-change: transform; line-height: 0; }
+.splash-squish { animation: pitchup-squish 1.8s forwards; transform-origin: center bottom; will-change: transform; line-height: 0; }
+.splash-shadow { animation: pitchup-shadow 1.8s forwards; will-change: transform, opacity; }
+.splash-word   { animation: pitchup-word 0.8s ease 0.2s both; will-change: transform, opacity; }
+
+/* Vestibular safety: no flight, no splat — just the ball at rest, then fade. */
+@media (prefers-reduced-motion: reduce) {
+  .splash-bounce,
+  .splash-squish,
+  .splash-shadow { animation: none; }
+  .splash-shadow { opacity: 0.3; }
+  .splash-word   { animation: none; opacity: 0.7; }
+}
+
 @layer utilities {
   .font-sans {
     font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
