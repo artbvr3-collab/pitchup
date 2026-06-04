@@ -49,3 +49,12 @@ next-env.d.ts
 
 # claude code
 .claude/
+
+# local dev artifacts (DB dumps, seed working files, scratch notes)
+# venue photos live on Cloudflare R2 in prod — these local copies are seed-only
+/public/venues/
+/prod-db-backup.sql
+/prisma/prod-import.sql
+/prisma/backup-venues-pre-import.json
+/prisma/venues-preview.json
+WORK_LOG.md
