@@ -31,13 +31,14 @@
  */
 "use client";
 
+import { MagnifyingGlass } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { COVER_IDS } from "@/src/match_lifecycle/domain/covers";
 import { Button } from "@/src/ui/components/button";
 import { Input } from "@/src/ui/components/input";
-import { Sheet } from "@/src/ui/components/sheet";
+import { Modal } from "@/src/ui/components/modal";
 import { Switch } from "@/src/ui/components/switch";
 import { coverBackground, coverIcon } from "@/src/ui/lib/cover-style";
 
@@ -178,6 +179,21 @@ export function AdminVenuesTable({ rows }: { readonly rows: readonly AdminVenueR
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Client-side list controls (rows are already fully loaded — no refetch).
+  const [query, setQuery] = useState("");
+  const [missingPhotoOnly, setMissingPhotoOnly] = useState(false);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return rows.filter((v) => {
+      if (missingPhotoOnly && v.photoUrl) return false;
+      if (q && !v.name.toLowerCase().includes(q) && !v.address.toLowerCase().includes(q)) {
+        return false;
+      }
+      return true;
+    });
+  }, [rows, query, missingPhotoOnly]);
+
   function openAdd(): void {
     setModal({ mode: "add" });
     setForm(blankForm());
@@ -302,11 +318,42 @@ export function AdminVenuesTable({ rows }: { readonly rows: readonly AdminVenueR
 
   return (
     <>
-      <div className="flex justify-end px-4 pb-2">
+      <div className="flex flex-wrap items-center gap-2 px-4 pb-2">
+        <div className="relative w-full max-w-xs">
+          <MagnifyingGlass
+            size={16}
+            weight="bold"
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted"
+          />
+          <Input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search name or address…"
+            className="h-9 pl-9 text-[13px]"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setMissingPhotoOnly((v) => !v)}
+          className={
+            "h-9 rounded-lg border-[1.5px] px-3 text-[12px] font-medium transition-colors " +
+            (missingPhotoOnly
+              ? "border-green-dark bg-green-dark text-text-inverted"
+              : "border-border text-text-primary hover:bg-bg-surface")
+          }
+        >
+          No photo
+        </button>
+        <span className="text-[12px] text-text-muted">
+          {filtered.length === rows.length
+            ? `${rows.length} venues`
+            : `${filtered.length} / ${rows.length}`}
+        </span>
         <button
           type="button"
           onClick={openAdd}
-          className="h-9 rounded-lg bg-green-dark px-3 text-[13px] font-semibold text-text-inverted transition-opacity hover:opacity-90"
+          className="ml-auto h-9 rounded-lg bg-green-dark px-3 text-[13px] font-semibold text-text-inverted transition-opacity hover:opacity-90"
         >
           + Add venue
         </button>
@@ -324,23 +371,32 @@ export function AdminVenuesTable({ rows }: { readonly rows: readonly AdminVenueR
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
+            {filtered.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-3 py-6 text-center text-text-muted">
-                  No venues yet
+                  {rows.length === 0 ? "No venues yet" : "No venues match your filters"}
                 </td>
               </tr>
             ) : (
-              rows.map((v) => (
+              filtered.map((v) => (
                 <tr key={v.id} className="border-b border-border align-middle">
                   <td className="px-3 py-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2.5">
                       <span
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[13px]"
-                        style={{ background: coverBackground(v.coverId) }}
+                        className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md text-[15px]"
+                        style={v.photoUrl ? undefined : { background: coverBackground(v.coverId) }}
                         aria-hidden
                       >
-                        {coverIcon(v.coverId)}
+                        {v.photoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- admin-only internal thumbnail; remote host varies, no next/image config
+                          <img
+                            src={v.photoUrl}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          coverIcon(v.coverId)
+                        )}
                       </span>
                       <div className="min-w-0">
                         <div className="truncate font-medium">{v.name}</div>
@@ -388,229 +444,239 @@ export function AdminVenuesTable({ rows }: { readonly rows: readonly AdminVenueR
         </table>
       </div>
 
-      <Sheet
+      <Modal
         open={modal !== null}
         onClose={() => setModal(null)}
         ariaLabel={modal?.mode === "edit" ? "Edit venue" : "Add venue"}
+        className="max-w-[720px] p-0"
       >
         {modal && (
-          <div className="flex max-h-[80vh] flex-col gap-3 overflow-y-auto p-4">
-            <h2 className="text-[17px] font-bold">
-              {modal.mode === "edit" ? "Edit venue" : "Add venue"}
-            </h2>
-
-            <Field label="Name">
-              <Input
-                value={form.name}
-                onChange={(e) => patch({ name: e.target.value })}
-                maxLength={100}
-                placeholder="Strahov — Field 3"
-              />
-            </Field>
-
-            <Field label="Address">
-              <Input
-                value={form.address}
-                onChange={(e) => patch({ address: e.target.value })}
-                maxLength={200}
-                placeholder="Vaníčkova 2, 169 00 Praha 6"
-              />
-            </Field>
-
-            <div className="flex gap-2">
-              <Field label="Lat" className="flex-1">
-                <Input
-                  type="number"
-                  step="any"
-                  value={form.lat}
-                  onChange={(e) => patch({ lat: e.target.value })}
-                  placeholder="50.0793"
-                />
-              </Field>
-              <Field label="Lng" className="flex-1">
-                <Input
-                  type="number"
-                  step="any"
-                  value={form.lng}
-                  onChange={(e) => patch({ lng: e.target.value })}
-                  placeholder="14.3879"
-                />
-              </Field>
+          <div className="flex max-h-[88vh] flex-col">
+            <div className="border-b border-border px-5 py-3.5">
+              <h2 className="text-[17px] font-bold">
+                {modal.mode === "edit" ? "Edit venue" : "Add venue"}
+              </h2>
             </div>
 
-            <Field label="Surface(s)">
-              <div className="flex gap-2">
-                {(["grass", "hard"] as const).map((s) => {
-                  const on = s === "grass" ? form.grass : form.hard;
-                  return (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() =>
-                        patch(s === "grass" ? { grass: !form.grass } : { hard: !form.hard })
-                      }
-                      className={
-                        "h-9 rounded-lg border-[1.5px] px-3 text-[13px] font-medium transition-colors " +
-                        (on
-                          ? "border-green-dark bg-green-dark text-text-inverted"
-                          : "border-border text-text-primary hover:bg-bg-surface")
-                      }
-                    >
-                      {SURFACE_LABELS[s]}
-                    </button>
-                  );
-                })}
-              </div>
-            </Field>
-
-            <Field label="Cover">
-              <div className="grid grid-cols-6 gap-1.5">
-                {modal.mode === "add" && (
-                  <button
-                    type="button"
-                    onClick={() => patch({ coverId: null })}
-                    title="Auto (by venue)"
-                    className={
-                      "flex aspect-square items-center justify-center rounded-md border-[1.5px] text-[10px] font-medium " +
-                      (form.coverId === null
-                        ? "border-green-dark text-green-dark"
-                        : "border-border text-text-muted")
-                    }
-                  >
-                    Auto
-                  </button>
-                )}
-                {COVER_IDS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => patch({ coverId: c })}
-                    title={c}
-                    style={{ background: coverBackground(c) }}
-                    className={
-                      "flex aspect-square items-center justify-center rounded-md text-[14px] ring-offset-2 transition-shadow " +
-                      (form.coverId === c ? "ring-2 ring-green-dark" : "")
-                    }
-                    aria-label={`Cover ${c}`}
-                  >
-                    {coverIcon(c)}
-                  </button>
-                ))}
-              </div>
-            </Field>
-
-            <Field label="Google Maps URL">
-              <Input
-                type="url"
-                value={form.googleMapsUrl}
-                onChange={(e) => patch({ googleMapsUrl: e.target.value })}
-                placeholder="https://maps.google.com/..."
-              />
-              {parsedCoords && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    patch({
-                      lat: String(parsedCoords.lat),
-                      lng: String(parsedCoords.lng),
-                    })
-                  }
-                  className="mt-1 self-start text-[12px] font-medium text-green-dark underline"
-                >
-                  Use coordinates from this link ({parsedCoords.lat.toFixed(4)},{" "}
-                  {parsedCoords.lng.toFixed(4)})
-                </button>
-              )}
-            </Field>
-
-            <div className="flex flex-col gap-1">
-              <span className="text-[12px] font-medium text-text-secondary">Photo</span>
-              <div className="flex flex-col gap-2">
-                {form.photoUrl.trim() !== "" ? (
-                  <div className="relative w-fit">
-                    {/* eslint-disable-next-line @next/next/no-img-element -- admin-only internal preview; remote host varies, no next/image config */}
-                    <img
-                      src={form.photoUrl}
-                      alt="Venue"
-                      className="h-28 w-44 rounded-lg border border-border object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => patch({ photoUrl: "" })}
-                      className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-text-primary text-[13px] leading-none text-text-inverted shadow"
-                      aria-label="Remove photo"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex h-28 w-44 items-center justify-center rounded-lg border-[1.5px] border-dashed border-border text-[12px] text-text-muted">
-                    No photo
-                  </div>
-                )}
-
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
-                    className="h-9 rounded-lg border-[1.5px] border-border px-3 text-[13px] font-medium text-text-primary transition-colors hover:bg-bg-surface disabled:opacity-50"
-                  >
-                    {uploading
-                      ? "Uploading…"
-                      : form.photoUrl.trim() !== ""
-                        ? "Replace photo"
-                        : "Upload photo"}
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    className="hidden"
-                    onChange={onPickFile}
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 overflow-y-auto p-5 md:grid-cols-2">
+              {/* Left column — the data fields. */}
+              <div className="flex flex-col gap-3">
+                <Field label="Name">
+                  <Input
+                    value={form.name}
+                    onChange={(e) => patch({ name: e.target.value })}
+                    maxLength={100}
+                    placeholder="Strahov — Field 3"
                   />
+                </Field>
+
+                <Field label="Address">
+                  <Input
+                    value={form.address}
+                    onChange={(e) => patch({ address: e.target.value })}
+                    maxLength={200}
+                    placeholder="Vaníčkova 2, 169 00 Praha 6"
+                  />
+                </Field>
+
+                <div className="flex gap-2">
+                  <Field label="Lat" className="flex-1">
+                    <Input
+                      type="number"
+                      step="any"
+                      value={form.lat}
+                      onChange={(e) => patch({ lat: e.target.value })}
+                      placeholder="50.0793"
+                    />
+                  </Field>
+                  <Field label="Lng" className="flex-1">
+                    <Input
+                      type="number"
+                      step="any"
+                      value={form.lng}
+                      onChange={(e) => patch({ lng: e.target.value })}
+                      placeholder="14.3879"
+                    />
+                  </Field>
                 </div>
 
-                {uploadError && (
-                  <p className="text-[12px] text-destructive">{uploadError}</p>
-                )}
+                <Field label="Surface(s)">
+                  <div className="flex gap-2">
+                    {(["grass", "hard"] as const).map((s) => {
+                      const on = s === "grass" ? form.grass : form.hard;
+                      return (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() =>
+                            patch(s === "grass" ? { grass: !form.grass } : { hard: !form.hard })
+                          }
+                          className={
+                            "h-9 rounded-lg border-[1.5px] px-3 text-[13px] font-medium transition-colors " +
+                            (on
+                              ? "border-green-dark bg-green-dark text-text-inverted"
+                              : "border-border text-text-primary hover:bg-bg-surface")
+                          }
+                        >
+                          {SURFACE_LABELS[s]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Field>
 
-                <details className="text-[12px]">
-                  <summary className="cursor-pointer text-text-muted">
-                    or paste a URL
-                  </summary>
+                <Field label="Google Maps URL">
                   <Input
                     type="url"
-                    value={form.photoUrl}
-                    onChange={(e) => patch({ photoUrl: e.target.value })}
-                    placeholder="https://example.com/venue.jpg"
-                    className="mt-1"
+                    value={form.googleMapsUrl}
+                    onChange={(e) => patch({ googleMapsUrl: e.target.value })}
+                    placeholder="https://maps.google.com/..."
                   />
-                </details>
-              </div>
-            </div>
+                  {parsedCoords && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        patch({
+                          lat: String(parsedCoords.lat),
+                          lng: String(parsedCoords.lng),
+                        })
+                      }
+                      className="mt-1 self-start text-[12px] font-medium text-green-dark underline"
+                    >
+                      Use coordinates from this link ({parsedCoords.lat.toFixed(4)},{" "}
+                      {parsedCoords.lng.toFixed(4)})
+                    </button>
+                  )}
+                </Field>
 
-            <div className="flex items-center justify-between rounded-lg border-[1.5px] border-border px-3 py-2">
-              <div className="min-w-0">
-                <div className="text-[14px] font-medium">Active</div>
-                {editingActiveWithUpcoming && (
-                  <div className="mt-0.5 text-[11px] text-text-muted">
-                    Can&apos;t deactivate — {upcomingCount} upcoming match(es) on this
-                    venue. Cancel them first or wait until they end.
+                <div className="flex items-center justify-between rounded-lg border-[1.5px] border-border px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="text-[14px] font-medium">Active</div>
+                    {editingActiveWithUpcoming && (
+                      <div className="mt-0.5 text-[11px] text-text-muted">
+                        Can&apos;t deactivate — {upcomingCount} upcoming match(es) on this
+                        venue. Cancel them first or wait until they end.
+                      </div>
+                    )}
                   </div>
-                )}
+                  <Switch
+                    checked={form.active}
+                    onCheckedChange={(v) => patch({ active: v })}
+                    disabled={editingActiveWithUpcoming}
+                    aria-label="Active"
+                  />
+                </div>
               </div>
-              <Switch
-                checked={form.active}
-                onCheckedChange={(v) => patch({ active: v })}
-                disabled={editingActiveWithUpcoming}
-                aria-label="Active"
-              />
+
+              {/* Right column — the visual fields (photo + cover). */}
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[12px] font-medium text-text-secondary">Photo</span>
+                  <div className="flex flex-col gap-2">
+                    {form.photoUrl.trim() !== "" ? (
+                      <div className="relative">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- admin-only internal preview; remote host varies, no next/image config */}
+                        <img
+                          src={form.photoUrl}
+                          alt="Venue"
+                          className="h-44 w-full rounded-lg border border-border object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => patch({ photoUrl: "" })}
+                          className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-text-primary text-[13px] leading-none text-text-inverted shadow"
+                          aria-label="Remove photo"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex h-44 w-full items-center justify-center rounded-lg border-[1.5px] border-dashed border-border text-[12px] text-text-muted">
+                        No photo
+                      </div>
+                    )}
+
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                        className="h-9 rounded-lg border-[1.5px] border-border px-3 text-[13px] font-medium text-text-primary transition-colors hover:bg-bg-surface disabled:opacity-50"
+                      >
+                        {uploading
+                          ? "Uploading…"
+                          : form.photoUrl.trim() !== ""
+                            ? "Replace photo"
+                            : "Upload photo"}
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        onChange={onPickFile}
+                      />
+                    </div>
+
+                    {uploadError && (
+                      <p className="text-[12px] text-destructive">{uploadError}</p>
+                    )}
+
+                    <details className="text-[12px]">
+                      <summary className="cursor-pointer text-text-muted">
+                        or paste a URL
+                      </summary>
+                      <Input
+                        type="url"
+                        value={form.photoUrl}
+                        onChange={(e) => patch({ photoUrl: e.target.value })}
+                        placeholder="https://example.com/venue.jpg"
+                        className="mt-1"
+                      />
+                    </details>
+                  </div>
+                </div>
+
+                <Field label="Cover">
+                  <div className="grid grid-cols-6 gap-1.5">
+                    {modal.mode === "add" && (
+                      <button
+                        type="button"
+                        onClick={() => patch({ coverId: null })}
+                        title="Auto (by venue)"
+                        className={
+                          "flex aspect-square items-center justify-center rounded-md border-[1.5px] text-[10px] font-medium " +
+                          (form.coverId === null
+                            ? "border-green-dark text-green-dark"
+                            : "border-border text-text-muted")
+                        }
+                      >
+                        Auto
+                      </button>
+                    )}
+                    {COVER_IDS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => patch({ coverId: c })}
+                        title={c}
+                        style={{ background: coverBackground(c) }}
+                        className={
+                          "flex aspect-square items-center justify-center rounded-md text-[14px] ring-offset-2 transition-shadow " +
+                          (form.coverId === c ? "ring-2 ring-green-dark" : "")
+                        }
+                        aria-label={`Cover ${c}`}
+                      >
+                        {coverIcon(c)}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+              </div>
             </div>
 
-            {error && <p className="text-[13px] text-destructive">{error}</p>}
-
-            <div className="flex gap-2 pt-1">
+            <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
+              {error && <p className="mr-auto text-[13px] text-destructive">{error}</p>}
               <Button variant="ghost" onClick={() => setModal(null)} disabled={pending}>
                 Cancel
               </Button>
@@ -620,7 +686,7 @@ export function AdminVenuesTable({ rows }: { readonly rows: readonly AdminVenueR
             </div>
           </div>
         )}
-      </Sheet>
+      </Modal>
     </>
   );
 }
