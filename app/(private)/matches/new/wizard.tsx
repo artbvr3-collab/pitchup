@@ -505,6 +505,49 @@ function Step1({
     );
   }, [state.venueSearch, venues]);
 
+  // ── Venue combobox: list stays collapsed until the field is focused /
+  //    typed into; once a venue is chosen we show a compact card + "Change". ──
+  const [venueOpen, setVenueOpen] = React.useState(false);
+  const venueComboRef = React.useRef<HTMLDivElement>(null);
+  const venueInputRef = React.useRef<HTMLInputElement>(null);
+
+  const selectedVenue = React.useMemo(
+    () => (state.venueId ? venues.find((v) => v.id === state.venueId) ?? null : null),
+    [state.venueId, venues],
+  );
+
+  // Close the dropdown on outside click (mirrors MatchHeaderMenu).
+  React.useEffect(() => {
+    if (!venueOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (venueComboRef.current && !venueComboRef.current.contains(e.target as Node)) {
+        setVenueOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [venueOpen]);
+
+  // Whenever the combobox opens (focus or "Change"), put the cursor in the input.
+  React.useEffect(() => {
+    if (venueOpen) venueInputRef.current?.focus();
+  }, [venueOpen]);
+
+  const selectVenue = (v: VenueView) => {
+    setState((s) => ({
+      ...s,
+      venueId: v.id,
+      surface: v.surface[0]!,
+      studsAllowed: v.surface[0] === "hard" ? false : s.studsAllowed,
+    }));
+    setVenueOpen(false);
+  };
+
+  const changeVenue = () => {
+    setState((s) => ({ ...s, venueSearch: "" }));
+    setVenueOpen(true);
+  };
+
   return (
     <>
       <section>
@@ -570,44 +613,90 @@ function Step1({
 
       <section>
         <FieldLabel>Venue</FieldLabel>
-        <div className="relative">
-          <MagnifyingGlass
-            size={16}
-            weight="bold"
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary"
-          />
-          <Input
-            type="search"
-            placeholder="Search venue…"
-            value={state.venueSearch}
-            onChange={(e) =>
-              setState((s) => ({ ...s, venueSearch: e.target.value }))
-            }
-            className="pl-9"
-          />
-        </div>
-        <div className="mt-2.5 flex flex-col gap-1.5">
-          {filteredVenues.map((v) => (
-            <VenueItem
-              key={v.id}
-              venue={v}
-              selected={state.venueId === v.id}
-              onSelect={() =>
-                setState((s) => ({
-                  ...s,
-                  venueId: v.id,
-                  surface: v.surface[0]!,
-                  studsAllowed: v.surface[0] === "hard" ? false : s.studsAllowed,
-                }))
+
+        {selectedVenue && !venueOpen ? (
+          <button
+            type="button"
+            onClick={changeVenue}
+            className="flex w-full items-center gap-2.5 rounded-[10px] border-[1.5px] border-green-dark bg-bg-card p-3 text-left"
+          >
+            <span
+              className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[8px] text-[14px]"
+              style={
+                selectedVenue.photoUrl
+                  ? undefined
+                  : { background: coverBackground(selectedVenue.coverId) }
               }
-            />
-          ))}
-          {filteredVenues.length === 0 && (
-            <p className="px-1 py-2 text-[13px] text-text-secondary">
-              No venues match &ldquo;{state.venueSearch}&rdquo;.
-            </p>
-          )}
-        </div>
+            >
+              {selectedVenue.photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={selectedVenue.photoUrl} alt="" className="h-full w-full object-cover" />
+              ) : (
+                "⚽"
+              )}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[14px] font-semibold leading-tight">
+                {selectedVenue.name}
+              </div>
+              <div className="mt-0.5 truncate text-[12px] text-text-secondary">
+                {selectedVenue.address}
+              </div>
+            </div>
+            <span className="shrink-0 self-center text-[12px] font-semibold text-green-dark">
+              Change
+            </span>
+          </button>
+        ) : (
+          <div ref={venueComboRef} className="relative">
+            <div className="relative">
+              <MagnifyingGlass
+                size={16}
+                weight="bold"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary"
+              />
+              <Input
+                ref={venueInputRef}
+                type="search"
+                placeholder="Search venue…"
+                value={state.venueSearch}
+                onFocus={() => setVenueOpen(true)}
+                onChange={(e) => {
+                  const venueSearch = e.target.value;
+                  setState((s) => ({ ...s, venueSearch }));
+                  setVenueOpen(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setVenueOpen(false);
+                    e.currentTarget.blur();
+                  }
+                }}
+                className="pl-9"
+              />
+            </div>
+            {venueOpen && (
+              <div className="absolute left-0 right-0 top-full z-20 mt-1.5 max-h-[300px] overflow-y-auto rounded-[14px] border border-border bg-bg-base p-1.5 shadow-card">
+                <div className="flex flex-col gap-1.5">
+                  {filteredVenues.map((v) => (
+                    <VenueItem
+                      key={v.id}
+                      venue={v}
+                      selected={state.venueId === v.id}
+                      onSelect={() => selectVenue(v)}
+                    />
+                  ))}
+                  {filteredVenues.length === 0 && (
+                    <p className="px-2 py-3 text-[13px] text-text-secondary">
+                      No venues match &ldquo;{state.venueSearch}&rdquo;.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <p className="mt-1.5 text-[12px] text-text-secondary">
           Can&rsquo;t find your spot? Venues are admin-managed in v1.
         </p>
